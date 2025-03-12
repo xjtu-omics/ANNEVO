@@ -11,8 +11,7 @@ import pandas as pd
 
 
 def reverse_complement(dna_sequence):
-    # complement_map = str.maketrans('ATGCRMYWKBSHDVNX', 'TACGYRKWMVHBDNX')
-    complement_map = str.maketrans('ATGCRMYWKBSHDVNX', 'TACGRMYWKBSHDVNX')
+    complement_map = str.maketrans('ATGCRMYWKBSHDVNXatgcrmywkbshdvnx', 'TACGRMYWKBSHDVNXtacgrmywkbshdvnx')
     return dna_sequence.translate(complement_map)[::-1]
 
 
@@ -111,23 +110,21 @@ def viterbi_decoding(emit_prob, trans_prob, phase_prob, sequence):
     states = list(range(num_states))
     seq_length = emit_prob.shape[0]
     new_arr = np.zeros((seq_length, num_states))
-    # CDS_phase_prob = (phase_prob[:, 0:3] / phase_prob[:, 0:3].sum(axis=1, keepdims=True)) * emit_prob[:, 2][:, np.newaxis]
-    # CDS_phase_prob = 0.2 * CDS_phase_prob + 0.8 * emit_prob[:, 2][:, np.newaxis]
     CDS_phase_prob = 0.5 * phase_prob[:, 0:3] + 0.5 * emit_prob[:, 2][:, np.newaxis]
     all_columns = set(range(num_states))
     none_intron_columns = {0, 1, 39, 5, 14, 26, 9, 18, 30, 34, 13, 22, 38}
     intron_columns = list(all_columns - none_intron_columns)
     exon_columns = [1, 39, 5, 14, 26, 9, 18, 30, 34, 13, 22, 38]
-    # none_intron_columns = list(none_intron_columns)
-    # GC_AG_intron = {2, 6, 10, 15, 19, 23, 27, 31, 35, 40}
-    # GT_AG_intron = {3, 7, 11, 16, 20, 24, 28, 32, 36, 41}
-    # AT_AC_intron = {4, 8, 12, 17, 21, 25, 29, 33, 37, 42}
     new_arr[:, 0] = np.log(emit_prob[:, 0]) * 1
     new_arr[:, [1, 39]] = np.log(emit_prob[:, 1][:, np.newaxis]) * 1
     new_arr[:, [5, 14, 26]] = np.log(CDS_phase_prob[:, 0][:, np.newaxis])
     new_arr[:, [9, 18, 30, 34]] = np.log(CDS_phase_prob[:, 2][:, np.newaxis])
     new_arr[:, [13, 22, 38]] = np.log(CDS_phase_prob[:, 1][:, np.newaxis])
     new_arr[:, intron_columns] = np.log(emit_prob[:, 3][:, np.newaxis])
+    # repeat_index = [i for i, char in enumerate(sequence) if char.islower()]
+    # columns = [1, 39, 5, 14, 26, 9, 18, 30, 34, 13, 22, 38]
+    # for col in columns:
+    #     new_arr[repeat_index, col] *= extra_penalty_coefficient
 
     log_emit_probs = new_arr
     log_trans_probs = np.log(trans_prob)
@@ -145,9 +142,9 @@ def viterbi_decoding(emit_prob, trans_prob, phase_prob, sequence):
         # state_unchanged = 0
         # state_changed = 0
         transition_matrix = init_transition_matrix.copy()
-        current_2base = sequence[t:t + 2]
-        pre_2base = sequence[t - 2:t]
-        current_base = sequence[t]
+        current_2base = sequence[t:t + 2].upper()
+        pre_2base = sequence[t - 2:t].upper()
+        current_base = sequence[t].upper()
         # define common transition state
         transition_matrix[states_to_num['intergenic'], states_to_num['five_UTR']] = state_changed
         transition_matrix[states_to_num['three_UTR'], states_to_num['intergenic']] = state_changed
@@ -282,7 +279,7 @@ def viterbi_decoding(emit_prob, trans_prob, phase_prob, sequence):
     return [states[i] for i in best_path], CDS_phase_prob
 
 
-def calculate_gene_score(gene_structure, CDS_prob, intron_prob, CDS_list, intron_list):
+def calculate_gene_score(gene_structure, CDS_prob, intron_prob, CDS_list, intron_list, sequence):
     CDS_phase0 = [5, 14, 26]
     CDS_phase2 = [9, 18, 30, 34]
     CDS_phase1 = [13, 22, 38]
@@ -296,18 +293,31 @@ def calculate_gene_score(gene_structure, CDS_prob, intron_prob, CDS_list, intron
     for CDS_start, CDS_end in CDS_list:
         CDS_score_single_sum = 0
         CDS_num_single = CDS_end - CDS_start + 1
+        coefficient = 0
         for i in range(CDS_start, CDS_end + 1):
             if gene_structure[i] in CDS_phase0:
-                CDS_score += CDS_prob[i, 0]
-                CDS_score_single_sum += CDS_prob[i, 0]
+                if sequence[i].islower():
+                    CDS_score += CDS_prob[i, 0] * coefficient
+                    CDS_score_single_sum += CDS_prob[i, 0] * coefficient
+                else:
+                    CDS_score += CDS_prob[i, 0]
+                    CDS_score_single_sum += CDS_prob[i, 0]
                 CDS_num += 1
             elif gene_structure[i] in CDS_phase2:
-                CDS_score += CDS_prob[i, 2]
-                CDS_score_single_sum += CDS_prob[i, 2]
+                if sequence[i].islower():
+                    CDS_score += CDS_prob[i, 2] * coefficient
+                    CDS_score_single_sum += CDS_prob[i, 2] * coefficient
+                else:
+                    CDS_score += CDS_prob[i, 2]
+                    CDS_score_single_sum += CDS_prob[i, 2]
                 CDS_num += 1
             elif gene_structure[i] in CDS_phase1:
-                CDS_score += CDS_prob[i, 1]
-                CDS_score_single_sum += CDS_prob[i, 1]
+                if sequence[i].islower():
+                    CDS_score += CDS_prob[i, 1] * coefficient
+                    CDS_score_single_sum += CDS_prob[i, 1] * coefficient
+                else:
+                    CDS_score += CDS_prob[i, 1]
+                    CDS_score_single_sum += CDS_prob[i, 1]
                 CDS_num += 1
         CDS_score_single = CDS_score_single_sum / CDS_num_single
         CDS_score_list.append(CDS_score_single)
@@ -345,7 +355,6 @@ def parse_ranges(lst, targets):
                 sub_ranges[key].extend([(start + start_index, end + start_index) for start, end in grouped.tolist()])
         return sub_ranges
 
-    # 分割列表，以连续的0为边界点
     sublists = []
     start_idx = 0
     in_zero_sequence = False
@@ -359,11 +368,9 @@ def parse_ranges(lst, targets):
         else:
             in_zero_sequence = False
 
-    # 处理最后一个子列表，如果最后一个元素不是0或者列表不为空
     if start_idx < len(lst) and not all(v == 0 for v in lst[start_idx:]):
         sublists.append((lst[start_idx:], start_idx))
 
-    # 处理每个子列表
     all_sublist_ranges = []
     for sublist, start_index in sublists:
         sub_ranges = process_sublist(sublist, start_index, targets)
@@ -403,7 +410,7 @@ def decode_gene_structure(location_start, base_predictions, transition_predictio
         CDS_count = sum((CDS[1] - CDS[0] + 1) for CDS in CDS_list_init)
         if CDS_count < min_cds_length:
             continue
-        CDS_score, intron_score, CDS_score_list, intron_score_list = calculate_gene_score(gene_structure_all_states, CDS_prob, intron_prob, CDS_list_init, intron_list_init)
+        CDS_score, intron_score, CDS_score_list, intron_score_list = calculate_gene_score(gene_structure_all_states, CDS_prob, intron_prob, CDS_list_init, intron_list_init, sequence)
         if CDS_score < min_cds_score:
             continue
         exist_confident_cds = False
@@ -488,11 +495,8 @@ def write_result(file, num, seq_id, result, length, strand):
 def predict_gff(genome, model_prediction_path, output, cpu_num, average_threshold, max_threshold, min_cds_length, min_cds_score, single_cds_score):
     with open(genome) as fna:
         genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
-    directory = os.path.dirname(output)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
     with open(output, 'w') as file:
-        file.write('# This output was generated with ANNEVO (version 1.0).\n')
+        file.write('# This output was generated with ANNEVO (version 1.0.0).\n')
         file.write('# ANNEVO is a gene prediction tool written by YeLab.\n')
     seq_num = 1
     prediction_files = [f for f in os.listdir(model_prediction_path) if os.path.isfile(os.path.join(model_prediction_path, f))]
@@ -514,7 +518,7 @@ def predict_gff(genome, model_prediction_path, output, cpu_num, average_threshol
 
         for chromosome in genome_predictions:
             chromosome_seq_record = genome_seq[chromosome]
-            sequence_forward = str(chromosome_seq_record.seq).upper()
+            sequence_forward = str(chromosome_seq_record.seq)
             sequence_reverse = reverse_complement(sequence_forward)
             length = len(sequence_forward)
             chromosome_length[chromosome] = length
@@ -557,7 +561,6 @@ def predict_gff(genome, model_prediction_path, output, cpu_num, average_threshol
                          phase_predictions_reverse[location_start:location_end],
                          sequence_reverse[location_start:location_end])
                     )
-
 
         results = []
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
