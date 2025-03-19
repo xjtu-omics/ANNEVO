@@ -500,8 +500,10 @@ def predict_gff(genome, model_prediction_path, output, cpu_num, average_threshol
         file.write('# ANNEVO is a gene prediction tool written by YeLab.\n')
     seq_num = 1
     prediction_files = [f for f in os.listdir(model_prediction_path) if os.path.isfile(os.path.join(model_prediction_path, f))]
-
-    for prediction_file in prediction_files:
+    prediction_files_num = len(prediction_files)
+    for i, prediction_file in enumerate(prediction_files):
+        print(f'Start decoding chunk {i+1} / {prediction_files_num}')
+        start_time = time.time()
         genome_predictions = {}
         with h5py.File(f'{model_prediction_path}/{prediction_file}', 'r') as h5file:
             for chromosome in h5file.keys():
@@ -617,3 +619,4 @@ def predict_gff(genome, model_prediction_path, output, cpu_num, average_threshol
                         file.flush()
 
                 seq_num += 1
+

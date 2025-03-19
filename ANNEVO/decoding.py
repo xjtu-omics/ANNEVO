@@ -1,6 +1,7 @@
 import argparse
 from ANNEVO.src.post_process_decoding import predict_gff
 import time
+import os
 
 
 def main():
@@ -20,6 +21,10 @@ def main():
     parser.add_argument("--single_cds_score", type=float, default=0.7,
                         help="Threshold for high-confidence CDS regions; genes with all CDS scores below this will be filtered out.")
     args = parser.parse_args()
+
+    output_dir = os.path.dirname(args.output)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     start_time = time.time()
     predict_gff(args.genome, args.model_prediction_path, args.output, args.cpu_num, args.average_threshold, args.max_threshold, args.min_cds_length, args.min_cds_score, args.single_cds_score)
