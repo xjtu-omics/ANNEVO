@@ -2,7 +2,7 @@
 ANNEVO is a deep learning-based ab initio gene annotation method for understanding genome function. ANNEVO is capable of modeling distal sequence information and joint evolutionary relationships across diverse species directly from genomes.  
 
 ANNEVO is designed to model various sub-lineages at high taxonomic levels while simultaneously accounting for distal interactions within the genome. It comprises three main components: (a) Context Extension: each nucleotide is provided with sufficient contextual information and regions are masked to reduce their contribution due to likely errors. (b) Neural Network: Modeling of both long-range interactions within sequences and multiple sub-lineages using a broad range of species enables end-to-end predictions of category, phase, and state for each nucleotide. (c) Gene Structure Decoding: Connects prediction result for individual segments to identify potential gene structures.
-![GitHub Image](https://raw.githubusercontent.com/PyZhang-Bio/ANNEVO/main/img/Fig1.png)
+![GitHub Image](https://raw.githubusercontent.com/xjtu-omics/ANNEVO/main/img/Fig1.png)
 ## License
 ANNEVO is free for non-commercial use by academic, government, and non-profit/not-for-profit institutions. A commercial version of the software is available and licensed through Xi'an Jiaotong University. For more information, please contact with Pengyu Zhang (pengyuzhang@stu.xjtu.edu.cn) or Kai Ye (kaiye@xjtu.edu.cn).  
 
@@ -53,23 +53,26 @@ Regarding the balance of computing resources and computing time, users can furth
 ### Gene structure decoding
 The required parameters for the second stage include the path to the genome, the path to the model prediction results, and the output annotation file. The command for gene structure decoding is as follows:
 ```bash
-python -m ANNEVO.decoding --genome path_to_genome --model_prediction_path path_to_save_predction --output path_to_gff --cpu_num 8
+python -m ANNEVO.decoding --genome path_to_genome --model_prediction_path path_to_save_predction --output path_to_gff --lineage selected_lineage --threads 48 --min_intron_length 30
 ```
-We strongly recommend utilizing more CPU cores by adjusting `cpu_num` when sufficient computational resources are available, as this will significantly accelerate the computation.
+We strongly recommend utilizing more CPU cores by adjusting `threads` when sufficient computational resources are available, as this will significantly accelerate the computation.
 
 ### Run demo data
-The demo data located at './example'.
+The demo data located at './example'.  
+`Arabidopsis_chr4_genome.fna`: Genome sequence of chromosome 4 of Arabidopsis thaliana.  
+`Arabidopsis_chr4_annotation.gff`: RefSeq annotation of chromosome 4 of Arabidopsis thaliana.
 ```bash
-python -m ANNEVO.prediction --genome example/Aspergillus_oryzae_genome.fna --lineage Fungi --model_prediction_path prediction_result/Aspergillus_oryzae
-python -m ANNEVO.decoding --genome example/Aspergillus_oryzae_genome.fna --model_prediction_path prediction_result/Aspergillus_oryzae --output gff_result/Aspergillus_oryzae_annotation.gff --cpu_num 8
+python -m ANNEVO.prediction --genome example/Arabidopsis_chr4_genome.fna --lineage Embryophyta --model_prediction_path prediction_result/Arabidopsis_chr4
+python -m ANNEVO.decoding --genome example/Arabidopsis_chr4_genome.fna --model_prediction_path prediction_result/Arabidopsis_chr4 --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48 --min_intron_length 30 --lineage Emryophyta
 ```
+You will see the prediction results in `gff_result/Arabidopsis_chr4_annotation.gff`.
 
 ## Retrain ANNEVO (Optional)
 ANNEVO supports the retraining of specific lineages using additional genomic data to further optimize performance. Using the demonstration data as an example, the first step is to preprocess the data based on the genome and annotation (we strongly recommend adjusting `cpu_num` to utilize more CPU cores when sufficient computational resources are available):
 ```bash
 # Filter GFF file to remove entries with duplicate gene IDs and their associated sub-features.
-python -m ANNEVO.src.filter_wrong_record --input_file example/Cryptococcus_neoformans_annotation.gff --output_file example/filterred_Cryptococcus_neoformans_annotation.gff
-python -m ANNEVO.data_processing --genome example/Cryptococcus_neoformans_genome.fa --annotation example/filterred_Cryptococcus_neoformans_annotation.gff --output_file processed_data/Cryptococcus_neoformans.h5
+python -m ANNEVO.src.filter_wrong_record --input_file example/Arabidopsis_chr4_annotation.gff --output_file example/filterred_Arabidopsis_chr4_annotation.gff
+python -m ANNEVO.data_processing --genome example/Arabidopsis_chr4_genome.fna --annotation example/filterred_Arabidopsis_chr4_annotation.gff --output_file processed_data/Arabidopsis_chr4.h5
 ```
 The training process typically requires the genomes of multiple species. Therefore, ANNEVO provides a `species_list.txt` to index the training species and validation species.
 ```bash
