@@ -10,7 +10,7 @@ ANNEVO is free for non-commercial use by academic, government, and non-profit/no
 We recommend using the conda virtual environment to install ANNEVO (Platform: Linux).
 ```bash
 # Get the source code
-git clone https://github.com/PyZhang-Bio/ANNEVO.git
+git clone https://github.com/xjtu-omics/ANNEVO.git
 cd ANNEVO
 
 # Create a conda environment for ANNEVO
@@ -63,7 +63,7 @@ The demo data located at './example'.
 `Arabidopsis_chr4_annotation.gff`: RefSeq annotation of chromosome 4 of Arabidopsis thaliana.
 ```bash
 python -m ANNEVO.prediction --genome example/Arabidopsis_chr4_genome.fna --lineage Embryophyta --model_prediction_path prediction_result/Arabidopsis_chr4
-python -m ANNEVO.decoding --genome example/Arabidopsis_chr4_genome.fna --model_prediction_path prediction_result/Arabidopsis_chr4 --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48 --min_intron_length 30 --lineage Emryophyta
+python -m ANNEVO.decoding --genome example/Arabidopsis_chr4_genome.fna --model_prediction_path prediction_result/Arabidopsis_chr4 --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48 --min_intron_length 30 --lineage Embryophyta
 ```
 You will see the prediction results in `gff_result/Arabidopsis_chr4_annotation.gff`.
 
