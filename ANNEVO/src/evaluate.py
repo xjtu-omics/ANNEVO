@@ -48,9 +48,8 @@ def model_evaluate(model, loss_fn_base, loss_fn_transition, loss_fn_phases, num_
             acc_transition, f1_transition, confusion_matrix_transition = utils.update_metrics(acc_transition, f1_transition, confusion_matrix_transition, outputs_transition, labels_transition, position_weights_transition)
             acc_phase, f1_phase, confusion_matrix_phase = utils.update_metrics(acc_phase, f1_phase, confusion_matrix_phase, outputs_phase, labels_phases, position_weights_base)
 
-            # 显式删除不再需要的变量
             del outputs_base, outputs_transition, outputs_phase, loss_base, loss_transition, loss_phases
-            gc.collect()  # 触发垃圾回收
+            gc.collect()
 
     final_acc_base = acc_base.compute()
     final_f1_base = f1_base.compute()

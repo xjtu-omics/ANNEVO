@@ -564,22 +564,18 @@ def create_dataset(genome, annotation, output_file, cpu_num, window_size, flank_
         split_genome[seq_id] = windows
 
     with h5py.File(output_file, "w") as f:
-        # 遍历split_genome，将数据存储到HDF5文件中
         for chromosome, windows in split_genome.items():
-            grp = f.create_group(str(chromosome))  # 为每个染色体创建一个组
-            # 序列、注释和权重数据需要单独处理和存储
-            sequences = [window[0] for window in windows]  # 序列数据
-            annotations = np.array([window[1] for window in windows])  # 注释数据
-            weights = np.array([window[2] for window in windows])  # 权重数据
-            transition_annotation = np.array([window[3] for window in windows])  # 状态转移数据
-            transition_mask = np.array([window[4] for window in windows])  # 状态转移权重数据
-            phases = np.array([window[5] for window in windows])  # CDS相位数据
+            grp = f.create_group(str(chromosome))
+            sequences = [window[0] for window in windows]
+            annotations = np.array([window[1] for window in windows])
+            weights = np.array([window[2] for window in windows])
+            transition_annotation = np.array([window[3] for window in windows])
+            transition_mask = np.array([window[4] for window in windows])
+            phases = np.array([window[5] for window in windows])
 
-            # 序列作为可变长度的字符串数组存储
             dt = h5py.special_dtype(vlen=str)
             grp.create_dataset("sequences", data=sequences, dtype=dt)
 
-            # 注释和权重作为NumPy数组存储
             grp.create_dataset("annotations", data=annotations)
             grp.create_dataset("weights", data=weights)
             grp.create_dataset("transition_annotation", data=transition_annotation)

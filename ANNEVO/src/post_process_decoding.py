@@ -418,7 +418,7 @@ def viterbi_decoding(emit_prob, trans_prob, phase_prob, sequence, states_to_num,
     log_emit_probs = new_arr
     log_trans_probs = np.log(trans_prob)
     penalty_epsilon = np.log(epsilon)
-    path = np.zeros((seq_length, num_states), dtype=int)  # 路径矩阵，每个位置记录来自于前一位置的路径号
+    path = np.zeros((seq_length, num_states), dtype=int)
     dp = np.full((seq_length, num_states), -np.inf)
     dp[0, 0] = 0
     # dp[0, :] = log_emit_probs[0, :]

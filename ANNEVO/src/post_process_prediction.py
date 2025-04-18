@@ -1,7 +1,5 @@
 import os
-
 from ANNEVO.utils.utils import model_construction, model_load_weights
-import glob
 from Bio import SeqIO
 import h5py
 from tqdm import tqdm
@@ -10,18 +8,6 @@ import torch
 import torch.nn.functional as F
 import gc
 import subprocess
-
-
-def data_load(group, species_name):
-    fna_file_path = 'data/raw/' + group + '/' + species_name + '/latest_assembly_versions/*/*.fna'
-    fna_files = glob.glob(fna_file_path)
-    if len(fna_files) == 1:
-        fna_file = fna_files[0]
-    else:
-        raise Exception(f'There is a problem with the download file of {species_name}, please check.')
-    with open(fna_file) as fna:
-        genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
-    return genome_seq
 
 
 def reverse_complement(dna_sequence):
@@ -197,17 +183,14 @@ def predict_proba_of_bases(genome, lineage, chunk_num, num_workers, prediction_p
                 for i, dataset in enumerate(data):
                     chr_group.create_dataset(labels[i], data=dataset)
 
-        # 清理大列表和字典
         windows_forward.clear()
         windows_reverse.clear()
         genome_predictions.clear()
 
-        # 删除张量和其他临时变量
         del base_predictions_forward, transition_predictions_forward, phase_predictions_forward
         del base_predictions_reverse, transition_predictions_reverse, phase_predictions_reverse
         del base_predictions_forward_rec, transition_predictions_forward_rec, phase_predictions_forward_rec
         del base_predictions_reverse_rec, transition_predictions_reverse_rec, phase_predictions_reverse_rec
 
-        # 手动回收内存
         torch.cuda.empty_cache()
         gc.collect()

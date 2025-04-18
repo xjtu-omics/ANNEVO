@@ -9,7 +9,7 @@ class EarlyStopping:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.best_f1 = -np.Inf  # 初始化为负无穷大
+        self.best_f1 = -np.Inf
         self.delta = delta
         self.path = path
 
@@ -19,7 +19,7 @@ class EarlyStopping:
         if self.best_score is None:
             self.best_score = score
             self.save_checkpoint(f1_score, model)
-        elif score <= self.best_score + self.delta:  # 注意这里的条件改为了小于等于
+        elif score <= self.best_score + self.delta:
             self.counter += 1
             if self.verbose:
                 print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
