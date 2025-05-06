@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="cluster" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false" showAutoUploadSettingsWarning="false">
+    <option name="confirmBeforeUploading" value="false" />
+    <serverData>
+      <paths name="L40">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/data/home/pyzhang/ANNEVO_2" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="L40_group">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/data/home/pyzhang/ANNEVO_2" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="old_cluster">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/genome_annotation/ANNEVO_2" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="pyzhang@10.181.7.169:65533 password">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/genome_annotation/ANNEVO_2" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>
