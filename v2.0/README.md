@@ -73,7 +73,7 @@ Note that the computational time advantage will be more significant in plants, b
 | BRAKER3   |    ---     |   ---    | 972min | 
 | ANNEVO v1 |   3.2min   |  2.6min  | 5.8min | 
 | ANNEVO v2 |   2.2min   |  1.7min  | 3.9min |
-### Arabidopsis thaliana (2.06G)
+### Zea mays (2.06G)
 | Model     | Prediction | Decoding |  Total | 
 |:----------|:----------:|:--------:|-------:|
 | BRAKER3   |    ---     |   ---    | 102.7h | 
