@@ -6,7 +6,13 @@ For restoring nucleotide-level resolution, we adopted a progressive transposed c
 (2) A more rigorous decoding algorithm.  
 We continue to predict the primary class of each nucleotide and map it to multiple states. Additionally, we developed a custom CDS state framework that completely eliminates premature stop codons within coding frames, even for codons spanning introns.  
 
-The new version can be found in the v2.0 directory (https://github.com/xjtu-omics/ANNEVO/tree/main/v2.0). The new version is currently available for ***Mammalia, Embryophyta and Fungi***, and preliminary evaluations have been conducted on several model organisms, with results showing **significant performance improvements**.
+The new version can be found in the v2.0 directory (https://github.com/xjtu-omics/ANNEVO/tree/main/v2.0). The new version is currently available for ***Mammalia, Embryophyta and Fungi***, and preliminary evaluations have been conducted on several model organisms, with results showing **significant performance improvements. ANNEVO has now surpassed BRAKER3 in all available lineages**. 
+### Average performance of 6 model species (Fungi, Plant and Mammalia) as described in the manuscript
+| Model   | NT(CDS)-F1 | gene-F1 | BUSCO |
+|:--------|:----------:|:-------:|------:|
+| BRAKER3 |    83.5    |  72.8   |  92.1 |
+| ANNEVO  |    91.2    |  78.3   |  97.0 |
+
 # ANNEVO
 ANNEVO is a deep learning-based ab initio gene annotation method for understanding genome function. ANNEVO is capable of modeling distal sequence information and joint evolutionary relationships across diverse species directly from genomes.  
 
