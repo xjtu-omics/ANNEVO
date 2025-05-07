@@ -10,6 +10,7 @@ The new version can be found in the v2.0 directory (https://github.com/xjtu-omic
 ### Average performance of 6 model species (Fungi, Plant and Mammalia) as described in the manuscript
 | Model   | NT(CDS)-F1 | gene-F1 | BUSCO |
 |:--------|:----------:|:-------:|------:|
+| Helixer |    85.4    |  68.9   |  90.7 |
 | BRAKER3 |    83.5    |  72.8   |  92.1 |
 | ANNEVO  |    91.2    |  78.3   |  97.0 |
 
