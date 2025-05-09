@@ -7,12 +7,23 @@ For restoring nucleotide-level resolution, we adopted a progressive transposed c
 We continue to predict the primary class of each nucleotide and map it to multiple states. Additionally, we developed a custom CDS state framework that completely eliminates premature stop codons within coding frames, even for codons spanning introns.  
 
 The new version can be found in the v2.0 directory (https://github.com/xjtu-omics/ANNEVO/tree/main/v2.0). The new version is currently available for ***Mammalia, Embryophyta and Fungi***, and preliminary evaluations have been conducted on several model organisms, with results showing **significant performance improvements. ANNEVO has now surpassed BRAKER3 in all available lineages**. 
-### Average performance of 6 model species (Fungi, Plant and Mammalia) as described in the manuscript
-| Model   | NT(CDS)-F1 | gene-F1 | BUSCO |
-|:--------|:----------:|:-------:|------:|
-| Helixer |    85.4    |  68.9   |  90.7 |
-| BRAKER3 |    83.5    |  72.8   |  92.1 |
-| ANNEVO  |    91.2    |  78.3   |  97.0 |
+## Average performance of 6 model species (Fungi, Plant and Mammalia) as described in the manuscript
+| Model     | NT(CDS)-F1 | gene-F1 | BUSCO |
+|:----------|:----------:|:-------:|------:|
+| Helixer   |    85.4    |  68.9   |  90.7 |
+| BRAKER3   |    83.5    |  72.8   |  92.1 |
+| ANNEVO v1 |    87.9    |  74.1   |  94.8 |
+| ANNEVO v2 |    91.2    |  78.3   |  97.0 |
+
+## Computational time
+Note that the computational time advantage will be more significant in plants, because ANNEVO only needs to decode potential gene regions, and the length of gene regions in plants is much smaller than that in mammals (gene length is shorter). BRAKER3 need to decode all regions step by step.
+
+| Model     | Sus scrofa (2.36G) | Zea mays (2.06G) | A. thaliana (0.12G) | 
+|:----------|:------------------:|:----------------:|--------------------:|
+| BRAKER3   |       47.6h        |      102.7h      |              972min | 
+| ANNEVO v1 |       2.94h        |      1.46h       |              5.8min | 
+| ANNEVO v2 |       1.28h        |      0.79h       |              3.9min | 
+
 
 # ANNEVO
 ANNEVO is a deep learning-based ab initio gene annotation method for understanding genome function. ANNEVO is capable of modeling distal sequence information and joint evolutionary relationships across diverse species directly from genomes.  
