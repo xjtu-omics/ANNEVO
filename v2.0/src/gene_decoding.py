@@ -245,7 +245,7 @@ def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, aver
     with open(genome) as fna:
         genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
     with open(output, 'w') as file:
-        file.write('# This output was generated with ANNEVO (version 1.0.0).\n')
+        file.write('# This output was generated with ANNEVO (version 2.0).\n')
         file.write('# ANNEVO is a gene prediction tool written by YeLab.\n')
     seq_num = 1
     prediction_files = [f for f in os.listdir(model_prediction_path) if os.path.isfile(os.path.join(model_prediction_path, f))]
