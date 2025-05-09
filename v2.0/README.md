@@ -31,6 +31,17 @@ In our latest evaluation, we included a comparison with Tiberius (applicable to 
 | ANNEVO v1         | 89.3 (88.9) |  74.5   |  91.6 |
 | ANNEVO v2         |    93.2     |  80.4   |  96.0 |
 
+### Performance on *Vertebrate_other —— Danio_rerio* 
+Note: The training of the Vertebrate_other model has not yet been fully completed, which means that the current performance is far from optimal. Before the training is fully completed, we will update the model and the corresponding performance once a day.
+
+| Model     | NT(CDS)-F1 | gene-F1 | BUSCO |
+|:----------|:----------:|:-------:|------:|
+| Augustus  |    78.4    |  59.3   |  85.9 |
+| BRAKER3   |    84.6    |  79.0   |  93.1 |
+| Helixer   |    88.0    |  63.6   |  86.3 |
+| ANNEVO v1 |    88.8    |  75.0   |  93.3 |
+| ANNEVO v2 |    91.4    |  78.8   |  95.0 |
+
 ### Performance on *Fungi —— Aspergillus_oryzae* 
 | Model     | NT(CDS)-F1 | gene-F1 | BUSCO |
 |:----------|:----------:|:-------:|------:|
@@ -41,7 +52,6 @@ In our latest evaluation, we included a comparison with Tiberius (applicable to 
 | ANNEVO v2 |    89.2    |  73.2   |  99.6 |
 
 ### Performance on *Plant —— Arabidopsis_thaliana and Zea_mays* 
-Note: The training of the plant model has not yet been fully completed, which means that the current performance is far from optimal. Before the training is fully completed, we will update the model and the corresponding performance once a day.
 #### Arabidopsis_thaliana
 | Model     | NT(CDS)-F1 | gene-F1 | BUSCO |
 |:----------|:----------:|:-------:|------:|
