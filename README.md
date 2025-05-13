@@ -72,8 +72,9 @@ print(torch.cuda.is_available())
 ## Usage
 ### One-step Execution
 ```bash
-python annotation.py --genome path_to_genome --lineage Embryophyta --output path_to_gff --threads 48
+python annotation.py --genome path_to_genome --lineage selected_lineage --output path_to_gff --threads 48
 ```
+**Optional lineage: Fungi, Embryophyta, Invertebrate, Vertebrate_other, Mammalia.**  
 We strongly recommend utilizing more CPU cores by adjusting threads when sufficient computational resources are available, as this will significantly accelerate the computation. If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.
 ### Step-by-step Execution
 Typically, deep learning is conducted in environments equipped with GPU resources, where CPU resources are often limited. However, decoding gene structures usually requires substantial CPU resources. To address this, we provide a segmented execution approach, allowing users to flexibly switch between computational nodes/environments with different resources.  

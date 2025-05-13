@@ -8,7 +8,9 @@ def main():
     parser = argparse.ArgumentParser(description="Predict nucleotide information.")
     parser.add_argument('--genome', required=True, help='The genome to be predicted.')
     parser.add_argument('--lineage', type=str, required=True,
-                        help='The lineage of deep learning model. Optional: vertebrate_mammalian, plant')
+                        choices=["Fungi", "Embryophyta", "Invertebrate", "Vertebrate_other", "Mammalia"],
+                        help='Specify the lineage of the species to be predicted.'
+                             'Options: Fungi, Embryophyta, Invertebrate, Vertebrate_other, Mammalia.')
     parser.add_argument('--chunk_num', type=int, default=5,
                         help='The maximum number of blocks to store the predicted file. Split the prediction probability file into chunks to avoid memory overflow. '
                              'When memory is insufficient, this value can be increased.')

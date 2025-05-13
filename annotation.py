@@ -8,7 +8,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train deep learning model")
     parser.add_argument('--genome', required=True, help='The genome to be predicted.')
     parser.add_argument('--lineage', type=str, required=True,
-                        help='The lineage of deep learning model. Optional: vertebrate_mammalian, plant')
+                        choices=["Fungi", "Embryophyta", "Invertebrate", "Vertebrate_other", "Mammalia"],
+                        help='Specify the lineage of the species to be predicted.'
+                             'Options: Fungi, Embryophyta, Invertebrate, Vertebrate_other, Mammalia.')
 
     parser.add_argument("--output", required=True, help="Output GFF file")
     parser.add_argument("--threads", type=int, default=8, help="Number of CPU cores used simultaneously.")
