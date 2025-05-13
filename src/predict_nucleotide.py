@@ -11,9 +11,8 @@ import gc
 
 
 def reverse_complement(dna_sequence):
-    complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 'N': 'N', 'X': 'X',
-                  'Y': 'Y', 'R': 'R', 'M': 'M', 'W': 'W', 'K': 'K', 'B': 'B', 'S': 'S', 'D': 'D', 'H': 'H', 'V': 'V'}
-    return ''.join(complement[nucleotide] for nucleotide in reversed(dna_sequence))
+    complement_map = str.maketrans('ATGCRMYWKBSHDVNXatgcrmywkbshdvnx', 'TACGRMYWKBSHDVNXtacgrmywkbshdvnx')
+    return dna_sequence.translate(complement_map)[::-1]
 
 
 class GenomeDataset(Dataset):
