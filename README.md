@@ -1,4 +1,4 @@
-# Update
+# Update (Current version: 2.0)
 As stated in our manuscript, ANNEVO has not undergone systematic hyperparameter tuning or optimization, and maintains a deliberately lightweight model architecture. Therefore, its current performance is far from optimal, yet it still achieves state-of-the-art results. To further explore the potential of ANNEVO in genome annotation, we retained its core innovations (Hi-C inspired modeling and evolutionary Mixture-of-Experts network) while implementing several additional optimizations:  
 (1) A more efficient and rational model structure.  
 We replaced the transformer encoder with linear layers within each expert network, reducing resource requirements and increasing computational speed.
@@ -6,26 +6,29 @@ For restoring nucleotide-level resolution, we adopted a progressive transposed c
 (2) A more rigorous decoding algorithm.  
 We continue to predict the primary class of each nucleotide and map it to multiple states. Additionally, we developed a custom CDS state framework that completely eliminates premature stop codons within coding frames, even for codons spanning introns.  
 
-The new version can be found in the v2.0 directory (https://github.com/xjtu-omics/ANNEVO/tree/main/v2.0). The new version is currently available for ***Fungi, Plant, Mammalia and Vertebrate_other***.  
-## Average performance of 10 model species (Fungi, Plant, Mammalia and Vertebrate_other) as described in the manuscript
-Preliminary evaluations have been conducted on several model organisms, with results showing **significant performance improvements. ANNEVO has now surpassed BRAKER3 in all available lineages**. 
+**All training, validation, and test datasets used in the new version are exactly the same as those used in the previous version described in the manuscript, ensuring that the improvements are directly comparable.** The previous version can be found in the v1 directory (https://github.com/xjtu-omics/ANNEVO/tree/main/v1).
+## Improvements
+### Performance 
+Performance evaluations have been conducted on 12 model species (***Fungi, Plant, Mammalia, Vertebrate_other and Invertebrate***) as described in the manuscript, with results showing **significant performance improvements**.   
+**ANNEVO has now significantly outperform BRAKER3**. Detailed metrics for certain species and descriptions can be found in the *performance_evaluation* directory (https://github.com/xjtu-omics/ANNEVO/tree/main/performance_evaluation/Performance.md).
 
 | Model     | NT(CDS)-F1 | gene-F1 | BUSCO |
 |:----------|:----------:|:-------:|------:|
-| Helixer   |    86.7    |  69.8   |  90.2 |
-| BRAKER3   |    84.3    |  75.5   |  93.2 |
-| ANNEVO v1 |    88.5    |  75.3   |  94.0 |
-| ANNEVO v2 |    91.4    |  79.5   |  96.5 |
+| Augustus  |    72.4    |  49.7   |  73.5 |
+| Helixer   |    87.2    |  70.8   |  90.3 |
+| BRAKER3   |    84.6    |  76.4   |  93.9 |
+| ANNEVO v1 |    88.5    |  75.3   |  93.9 |
+| ANNEVO v2 |    91.7    |  80.5   |  96.6 |
 
-## Computational time
-Computational time advantage will be more significant in plants, because ANNEVO only needs to decode potential gene regions, and the length of gene regions in plants is much smaller than that in mammals (gene length is shorter). BRAKER3 need to decode all regions step by step.
+### Computational time
+Computational time advantage will be more significant in plants, because ANNEVO only needs to decode potential gene regions, and the length of gene regions in plants is much smaller than that in mammals (gene length is shorter). BRAKER3 need to decode all regions. Note: When using the one-step command, ANNEVO no longer needs to store intermediate prediction files, which significantly reduces runtime.
 
-| Model     | Sus scrofa (2.36G) | Zea mays (2.06G) | A. thaliana (0.12G) | 
-|:----------|:------------------:|:----------------:|--------------------:|
-| BRAKER3   |       47.6h        |      102.7h      |              972min | 
-| ANNEVO v1 |       2.94h        |      1.46h       |              5.8min | 
-| ANNEVO v2 |       1.28h        |      0.79h       |              3.9min | 
-
+| Model                              | Sus scrofa (2.36G) | Zea mays (2.06G) | A. thaliana (0.12G) | 
+|:-----------------------------------|:------------------:|:----------------:|--------------------:|
+| BRAKER3                            |       47.6h        |      102.7h      |              972min | 
+| ANNEVO v1 (Step-by-step Execution) |       2.94h        |      1.46h       |              5.8min | 
+| ANNEVO v2 (Step-by-step Execution) |       1.28h        |      0.79h       |              3.5min | 
+| ANNEVO v2 (One-step Execution)     |       1.13h        |      0.64h       |              3.4min | 
 
 # ANNEVO
 ANNEVO is a deep learning-based ab initio gene annotation method for understanding genome function. ANNEVO is capable of modeling distal sequence information and joint evolutionary relationships across diverse species directly from genomes.  
@@ -67,46 +70,34 @@ print(torch.cuda.is_available())
 ```
 
 ## Usage
-Typically, deep learning is conducted in environments equipped with GPU resources, where CPU resources are often limited. However, decoding gene structures usually requires substantial CPU resources. To address this, we provide a segmented execution approach, allowing users to flexibly switch between computational nodes/environments with different resources. ANNEVO consists of two stages:  
+### One-step Execution
+```bash
+python annotation.py --genome path_to_genome --lineage Embryophyta --output path_to_gff --threads 48
+```
+We strongly recommend utilizing more CPU cores by adjusting threads when sufficient computational resources are available, as this will significantly accelerate the computation. If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.
+### Step-by-step Execution
+Typically, deep learning is conducted in environments equipped with GPU resources, where CPU resources are often limited. However, decoding gene structures usually requires substantial CPU resources. To address this, we provide a segmented execution approach, allowing users to flexibly switch between computational nodes/environments with different resources.  
 Stage 1: Predicting three types of information for each nucleotide (recommended to be performed on environments with abundant GPU resources).  
-Stage 2: Decoding the three types of information into biologically valid gene structures (recommended to be performed on environments with abundant CPU resources).  
-User can use the following two instructions in the current directory to complete gene annotation:
-
-### Nucleotide prediction
-The required parameters for the first stage include the path to the genome, the specified lineage (which determines the lineage-specific model parameters to be used; Options: Fungi, Embryophyta, Mammalia, Vertebrate_other, Invertebrate), and the path to save the prediction results. The command for nucleotide prediction is as follows:
+Stage 2: Decoding the three types of information into biologically valid gene structures (recommended to be performed on environments with abundant CPU resources).
 ```bash
-python -m ANNEVO.prediction --genome path_to_genome --lineage selected_lineage --model_prediction_path path_to_save_predction
-```
-Regarding the balance of computing resources and computing time, users can further adjust the `chunk_num`, `batch_size` and `num_workers` parameters.
+# Nucleotide prediction
+python prediction.py --genome path_to_genome --lineage selected_lineage --model_prediction_path path_to_save_predction
 
-### Gene structure decoding
-The required parameters for the second stage include the path to the genome, the path to the model prediction results, and the output annotation file. The command for gene structure decoding is as follows:
-```bash
-python -m ANNEVO.decoding --genome path_to_genome --model_prediction_path path_to_save_predction --output path_to_gff --lineage selected_lineage --threads 48 --min_intron_length 30
+# Gene structure decoding
+python decoding.py --genome path_to_genome --model_prediction_path path_to_save_predction --output path_to_gff --threads 48 
 ```
-We strongly recommend utilizing more CPU cores by adjusting `threads` when sufficient computational resources are available, as this will significantly accelerate the computation.
-
 ### Run demo data
 The demo data located at './example'.  
 `Arabidopsis_chr4_genome.fna`: Genome sequence of chromosome 4 of Arabidopsis thaliana.  
 `Arabidopsis_chr4_annotation.gff`: RefSeq annotation of chromosome 4 of Arabidopsis thaliana.
 ```bash
-python -m ANNEVO.prediction --genome example/Arabidopsis_chr4_genome.fna --lineage Embryophyta --model_prediction_path prediction_result/Arabidopsis_chr4
-python -m ANNEVO.decoding --genome example/Arabidopsis_chr4_genome.fna --model_prediction_path prediction_result/Arabidopsis_chr4 --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48 --min_intron_length 30 --lineage Embryophyta
-```
-You will see the prediction results in `gff_result/Arabidopsis_chr4_annotation.gff`.
+# One-step Execution
+python annotation.py --genome example/Arabidopsis_chr4_genome.fna --lineage Embryophyta --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48
 
-## Retrain ANNEVO (Optional)
-ANNEVO supports the retraining of specific lineages using additional genomic data to further optimize performance. Using the demonstration data as an example, the first step is to preprocess the data based on the genome and annotation (we strongly recommend adjusting `cpu_num` to utilize more CPU cores when sufficient computational resources are available):
-```bash
-# Filter GFF file to remove entries with duplicate gene IDs and their associated sub-features.
-python -m ANNEVO.src.filter_wrong_record --input_file example/Arabidopsis_chr4_annotation.gff --output_file example/filterred_Arabidopsis_chr4_annotation.gff
-python -m ANNEVO.data_processing --genome example/Arabidopsis_chr4_genome.fna --annotation example/filterred_Arabidopsis_chr4_annotation.gff --output_file processed_data/Arabidopsis_chr4.h5
+# Step-by-step Execution
+python prediction.py --genome example/Arabidopsis_chr4_genome.fna --lineage Embryophyta --model_prediction_path prediction_result/Arabidopsis_chr4
+python decoding.py --genome example/Arabidopsis_chr4_genome.fna --model_prediction_path prediction_result/Arabidopsis_chr4 --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48
 ```
-The training process typically requires the genomes of multiple species. Therefore, ANNEVO provides a `species_list.txt` to index the training species and validation species.
-```bash
-python -m ANNEVO.train --train_list example/train_species_list.txt --val_list example/val_species_list.txt --model_save_path ANNEVO/saved_model/ANNEVO_test.pt --h5_path processed_data/
-```
-Note: ANNEVO supports personalized training, such as local pattern extraction depth and sub-lineage count. Please refer to the detailed instructions by running `python -m ANNEVO.train -h`.
-## Contact
+
+# Contact
 If you have any questions, please feel free to contact: pengyuzhang@stu.xjtu.edu.cn

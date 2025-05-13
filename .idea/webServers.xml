@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="1c3dec60-a386-49cc-a38a-5874c8a3e4b2" name="L40">
+        <fileTransfer accessType="SFTP" host="10.181.9.96" port="22" sshConfigId="5d2b4bc8-d6a4-4fe6-8928-0da0e52ebc0c" sshConfig="pyzhang@10.181.9.96:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+      <webServer id="cde5c0a5-2265-4f2e-91a3-98499364e6fb" name="L40_group">
+        <fileTransfer accessType="SFTP" host="10.181.9.96" port="22" sshConfigId="5d2b4bc8-d6a4-4fe6-8928-0da0e52ebc0c" sshConfig="pyzhang@10.181.9.96:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+      <webServer id="9f176e67-82eb-45bf-a209-f918f0e8b765" name="old_cluster">
+        <fileTransfer rootFolder="/data/home/pyzhang" accessType="SFTP" host="10.181.7.169" port="65533" sshConfigId="0042451d-51dd-4d54-99ce-cb5568dde1ef" sshConfig="pyzhang@10.181.7.169:65533 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+    <groups>
+      <group>
+        <name>cluster</name>
+        <servers>
+          <name value="L40_group" />
+          <name value="old_cluster" />
+        </servers>
+      </group>
+    </groups>
+  </component>
+</project>
