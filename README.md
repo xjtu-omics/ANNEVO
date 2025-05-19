@@ -23,12 +23,12 @@ Performance evaluations have been conducted on 12 model species (***Fungi, Plant
 ### Computational time
 Computational time advantage will be more significant in plants, because ANNEVO only needs to decode potential gene regions, and the length of gene regions in plants is much smaller than that in mammals (gene length is shorter). BRAKER3 need to decode all regions. Note: When using the one-step command, ANNEVO no longer needs to store intermediate prediction files, which significantly reduces runtime.
 
-| Model                              | Sus scrofa (2.36G) | Zea mays (2.06G) | A. thaliana (0.12G) | 
-|:-----------------------------------|:------------------:|:----------------:|--------------------:|
-| BRAKER3                            |       47.6h        |      102.7h      |              972min | 
-| ANNEVO v1 (Step-by-step Execution) |       2.94h        |      1.46h       |              5.8min | 
-| ANNEVO v2 (Step-by-step Execution) |       1.28h        |      0.79h       |              3.5min | 
-| ANNEVO v2 (One-step Execution)     |       1.13h        |      0.64h       |              3.4min | 
+| Model                                | Sus scrofa (2.36G) | Zea mays (2.06G) | A. thaliana (0.12G) | 
+|:-------------------------------------|:------------------:|:----------------:|--------------------:|
+| BRAKER3                              |       47.6h        |      102.7h      |              972min | 
+| ANNEVO v1 (Step-by-step Execution)   |       2.94h        |      1.46h       |              5.8min | 
+| ANNEVO v2 (Step-by-step Execution)   |       1.28h        |      0.79h       |              3.5min | 
+| ANNEVO v2 (One-step Execution)       |       1.13h        |      0.64h       |              3.4min |
 
 # ANNEVO
 ANNEVO is a deep learning-based ab initio gene annotation method for understanding genome function. ANNEVO is capable of modeling distal sequence information and joint evolutionary relationships across diverse species directly from genomes.  
@@ -75,7 +75,9 @@ print(torch.cuda.is_available())
 python annotation.py --genome path_to_genome --lineage selected_lineage --output path_to_gff --threads 48
 ```
 **Optional lineage: Fungi, Embryophyta, Invertebrate, Vertebrate_other, Mammalia.**  
-We strongly recommend utilizing more CPU cores by adjusting threads when sufficient computational resources are available, as this will significantly accelerate the computation. If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.
+We strongly recommend utilizing more CPU cores by adjusting threads when sufficient computational resources are available, as this will significantly accelerate the computation. If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.  
+Note: ANNEVO automatically supports use in a multi-GPU environment. If GPU resources are insufficient, you can adjust it by `--batch-size`. For example, adding the parameter `--batch-size 8` only requires about 4G GPU memory.
+
 ### Step-by-step Execution
 Typically, deep learning is conducted in environments equipped with GPU resources, where CPU resources are often limited. However, decoding gene structures usually requires substantial CPU resources. To address this, we provide a segmented execution approach, allowing users to flexibly switch between computational nodes/environments with different resources.  
 Stage 1: Predicting three types of information for each nucleotide (recommended to be performed on environments with abundant GPU resources).  
