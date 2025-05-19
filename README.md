@@ -76,7 +76,7 @@ python annotation.py --genome path_to_genome --lineage selected_lineage --output
 ```
 **Optional lineage: Fungi, Embryophyta, Invertebrate, Vertebrate_other, Mammalia.**  
 We strongly recommend utilizing more CPU cores by adjusting threads when sufficient computational resources are available, as this will significantly accelerate the computation. If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.  
-Note: ANNEVO automatically supports use in a multi-GPU environment. If GPU resources are insufficient, you can adjust it by `--batch-size`. For example, adding the parameter `--batch-size 8` only requires about 4G GPU memory.
+Note: ANNEVO automatically supports use in a multi-GPU environment. If GPU resources are insufficient, you can adjust it by `--batch_size`. For example, adding the parameter `--batch_size 8` only requires about 4G GPU memory.
 
 ### Step-by-step Execution
 Typically, deep learning is conducted in environments equipped with GPU resources, where CPU resources are often limited. However, decoding gene structures usually requires substantial CPU resources. To address this, we provide a segmented execution approach, allowing users to flexibly switch between computational nodes/environments with different resources.  
