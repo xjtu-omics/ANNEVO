@@ -12,6 +12,7 @@ from collections import defaultdict
 def pred_and_decode(genome, lineage, chunk_num, output, threads, num_workers, batch_size, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads,
                     num_blocks, num_branches, average_threshold, max_threshold, min_cds_length, min_cds_score, min_intron_length, num_classes):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    torch.set_num_threads(threads)
     with open(genome) as fna:
         genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
 
