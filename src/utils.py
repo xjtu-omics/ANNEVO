@@ -2,7 +2,7 @@ import random
 import os
 import numpy as np
 import torch.distributed as dist
-from model import model_architecture, model_architecture_without_MOE, model_architecture_without_transformer, model_architecture_without_transconv
+from model import model_architecture
 import torch
 import torch.nn as nn
 
