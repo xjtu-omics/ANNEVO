@@ -58,10 +58,11 @@ def predict_probability(model, windows, device, num_classes, batch_size, num_wor
             seqs = data
             # outputs, _, _ = model(seqs)
             outputs = model(seqs)
-            if device.type == 'cpu':
-                outputs = outputs.reshape(-1, num_classes)
-            else:
-                outputs = outputs.view(-1, num_classes)
+            outputs = outputs.reshape(-1, num_classes)
+            # if device.type == 'cpu':
+            #     outputs = outputs.reshape(-1, num_classes)
+            # else:
+            #     outputs = outputs.view(-1, num_classes)
 
             accumulated_outputs_base.append(outputs.cpu())
     all_outputs = torch.cat(accumulated_outputs_base, dim=0)
