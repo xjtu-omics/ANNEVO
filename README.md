@@ -1,44 +1,12 @@
-# Update (Current version: 2.0)
-As stated in our manuscript, ANNEVO has not undergone systematic hyperparameter tuning or optimization, and maintains a deliberately lightweight model architecture. Therefore, its current performance is far from optimal, yet it still achieves state-of-the-art results. To further explore the potential of ANNEVO in genome annotation, we retained its core innovations (Hi-C inspired modeling and evolutionary Mixture-of-Experts network) while implementing several additional optimizations:  
-(1) A more efficient and rational model structure.  
-We replaced the transformer encoder with linear layers within each expert network, reducing resource requirements and increasing computational speed.
-For restoring nucleotide-level resolution, we adopted a progressive transposed convolution approach instead of a direct reshape operation, thereby minimizing information loss during reconstruction.  
-(2) A more rigorous decoding algorithm.  
-We continue to predict the primary class of each nucleotide and map it to multiple states. Additionally, we developed a custom CDS state framework that completely eliminates premature stop codons within coding frames, even for codons spanning introns.  
-
-**All training, validation, and test datasets used in the new version are exactly the same as those used in the previous version described in the manuscript, ensuring that the improvements are directly comparable.** The previous version can be found in the v1 directory (https://github.com/xjtu-omics/ANNEVO/tree/main/v1).
-## Improvements
-### Performance 
-Performance evaluations have been conducted on 12 model species (***Fungi, Plant, Mammalia, Vertebrate_other and Invertebrate***) as described in the manuscript, with results showing **significant performance improvements**.   
-**ANNEVO has now significantly outperform BRAKER3**. Detailed metrics for certain species and descriptions can be found in the *performance_evaluation* directory (https://github.com/xjtu-omics/ANNEVO/tree/main/performance_evaluation/Performance.md).
-
-| Model     | NT(CDS)-F1 | gene-F1 | BUSCO |
-|:----------|:----------:|:-------:|------:|
-| Augustus  |    72.4    |  49.7   |  73.5 |
-| Helixer   |    87.2    |  70.8   |  90.3 |
-| BRAKER3   |    84.6    |  76.4   |  93.9 |
-| ANNEVO v1 |    88.5    |  75.3   |  93.9 |
-| ANNEVO v2 |    91.7    |  80.5   |  96.6 |
-
-### Computational time
-Computational time advantage will be more significant in plants, because ANNEVO only needs to decode potential gene regions, and the length of gene regions in plants is much smaller than that in mammals (gene length is shorter). BRAKER3 need to decode all regions. Note: When using the one-step command, ANNEVO no longer needs to store intermediate prediction files, which significantly reduces runtime.
-
-| Model                                | Sus scrofa (2.36G) | Zea mays (2.06G) | A. thaliana (0.12G) | 
-|:-------------------------------------|:------------------:|:----------------:|--------------------:|
-| BRAKER3                              |       47.6h        |      102.7h      |              972min | 
-| ANNEVO v1 (Step-by-step Execution)   |       2.94h        |      1.46h       |              5.8min | 
-| ANNEVO v2 (Step-by-step Execution)   |       1.28h        |      0.79h       |              3.5min | 
-| ANNEVO v2 (One-step Execution)       |       1.13h        |      0.64h       |              3.4min |
-
-# ANNEVO
+# ANNEVO (v2.1)
 ANNEVO is a deep learning-based ab initio gene annotation method for understanding genome function. ANNEVO is capable of modeling distal sequence information and joint evolutionary relationships across diverse species directly from genomes.  
 
-ANNEVO is designed to model various sub-lineages at high taxonomic levels while simultaneously accounting for distal interactions within the genome. It comprises three main components: (a) Context Extension: each nucleotide is provided with sufficient contextual information and regions are masked to reduce their contribution due to likely errors. (b) Neural Network: Modeling of both long-range interactions within sequences and multiple sub-lineages using a broad range of species enables end-to-end predictions of category, phase, and state for each nucleotide. (c) Gene Structure Decoding: Connects prediction result for individual segments to identify potential gene structures.
 ![GitHub Image](https://raw.githubusercontent.com/xjtu-omics/ANNEVO/main/img/Fig1.png)
-## License
-ANNEVO is free for non-commercial use by academic, government, and non-profit/not-for-profit institutions. A commercial version of the software is available and licensed through Xi'an Jiaotong University. For more information, please contact with Pengyu Zhang (pengyuzhang@stu.xjtu.edu.cn) or Kai Ye (kaiye@xjtu.edu.cn).  
+## License Notice
+While ANNEVO is released under the GPL-3.0 license, its use is restricted to non-commercial purposes only. This includes use by academic institutions, government agencies, and non-profit or not-for-profit organizations.  
+A commercial license of the software is available and licensed through Xi’an Jiaotong University. For commercial use or licensing inquiries, please contact: Pengyu Zhang (pengyuzhang@stu.xjtu.edu.cn) or Kai Ye (kaiye@xjtu.edu.cn).  
 
-## Installation
+# Installation
 We recommend using the conda virtual environment to install ANNEVO (Platform: Linux).
 ```bash
 # Get the source code
@@ -59,8 +27,7 @@ conda activate ANNEVO
 conda install pytorch=1.10 torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
 # Install other packages
-pip install .
-conda install -c bioconda seqkit=2.9.0
+pip install -r requirements.txt
 ```
 
 Check if CUDA is available:
@@ -69,38 +36,72 @@ import torch
 print(torch.cuda.is_available())
 ```
 
-## Usage
-### One-step Execution
+# Usage
+## One-step Execution
 ```bash
-python annotation.py --genome path_to_genome --lineage selected_lineage --output path_to_gff --threads 48
+python annotation.py --genome path_to_genome --model_path path_to_model --output path_to_gff --threads 48
 ```
-**Optional lineage: Fungi, Embryophyta, Invertebrate, Vertebrate_other, Mammalia.**  
 We strongly recommend utilizing more CPU cores by adjusting threads when sufficient computational resources are available, as this will significantly accelerate the computation. If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.  
-Note: ANNEVO automatically supports use in a multi-GPU environment. If GPU resources are insufficient, you can adjust it by `--batch_size`. For example, adding the parameter `--batch_size 8` only requires about 4G GPU memory.
+Note: ANNEVO automatically supports use in a multi-GPU environment. If GPU resources are insufficient, you can adjust it by `--batch_size`. For example, adding the parameter `--batch_size 8` only requires about 3G GPU memory.
 
-### Step-by-step Execution
+## Step-by-step Execution
 Typically, deep learning is conducted in environments equipped with GPU resources, where CPU resources are often limited. However, decoding gene structures usually requires substantial CPU resources. To address this, we provide a segmented execution approach, allowing users to flexibly switch between computational nodes/environments with different resources.  
 Stage 1: Predicting three types of information for each nucleotide (recommended to be performed on environments with abundant GPU resources).  
 Stage 2: Decoding the three types of information into biologically valid gene structures (recommended to be performed on environments with abundant CPU resources).
 ```bash
 # Nucleotide prediction
-python prediction.py --genome path_to_genome --lineage selected_lineage --model_prediction_path path_to_save_predction
+python prediction.py --genome path_to_genome --model_path path_to_model --model_prediction_path path_to_save_predction
 
 # Gene structure decoding
 python decoding.py --genome path_to_genome --model_prediction_path path_to_save_predction --output path_to_gff --threads 48 
 ```
-### Run demo data
+## Run demo data
 The demo data located at './example'.  
 `Arabidopsis_chr4_genome.fna`: Genome sequence of chromosome 4 of Arabidopsis thaliana.  
 `Arabidopsis_chr4_annotation.gff`: RefSeq annotation of chromosome 4 of Arabidopsis thaliana.
 ```bash
 # One-step Execution
-python annotation.py --genome example/Arabidopsis_chr4_genome.fna --lineage Embryophyta --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48
+python annotation.py --genome example/Arabidopsis_chr4_genome.fna --model_path saved_model/ANNEVO_Embryophyta.pt --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48
 
 # Step-by-step Execution
-python prediction.py --genome example/Arabidopsis_chr4_genome.fna --lineage Embryophyta --model_prediction_path prediction_result/Arabidopsis_chr4
+python prediction.py --genome example/Arabidopsis_chr4_genome.fna --model_path saved_model/ANNEVO_Embryophyta.pt --model_prediction_path prediction_result/Arabidopsis_chr4
 python decoding.py --genome example/Arabidopsis_chr4_genome.fna --model_prediction_path prediction_result/Arabidopsis_chr4 --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48
 ```
+# Re-train ANNEVO
+When you need to incorporate additional species or retrain ANNEVO on a specific clade, you can follow the steps below:  
+```bash
+# Filter out duplicated gene IDs and other issues that may cause parsing errors in the Biopython package
+python src/filter_wrong_record.py --input_file path_to_annotation --output_file path_to_filtered_annotation
 
+# Convert the genome sequence and annotation into H5 data for model training.
+python generate_datasets.py --genome path_to_genome --annotation path_to_filtered_annotation --output_file path_to_h5_data
+
+# Train deep learning model
+python model_train.py --train_list path_to_train_species_list --val_list path_to_val_species_list --model_save_path path_to_saved_model --h5_path path_to_h5_data
+```
+The `path_to_h5_data` directory should contain all H5-formatted data files used for both the training and validation sets.
+The `train_species_list` and `val_species_list` files are plain text files that specify which species to use by matching the corresponding H5 filenames.
+
+For example, if you use ten species for training and name the corresponding H5 files as `species_name_1` through `species_name_10`, then train_species_list should be a .txt file containing the following lines:
+```bash
+species_name_1
+species_name_2
+...
+species_name_10
+
+```
+# Fine tuning
+In cases where closely related species are limited or unavailable for the target genome, one of ANNEVO’s five main trained models can be selected as a starting point for fine-tuning.
+```bash
+# Filter out duplicated gene IDs and other issues that may cause parsing errors in the Biopython package
+python src/filter_wrong_record.py --input_file path_to_annotation --output_file path_to_filtered_annotation
+
+# Convert the genome sequence and annotation into H5 data for model training.
+python generate_datasets.py --genome path_to_genome --annotation path_to_filtered_annotation --output_file path_to_h5_data
+
+# Fine tuning deep learning model
+python fine_tune.py --fine_tune_species_list path_to_species_list --model_path path_to_model --model_save_path path_to_fine_tuned_model --h5_path path_to_h5_data
+```
+The `path_to_h5_data` and `species_list` are the same as those described in the Re-train ANNEVO section.
 # Contact
 If you have any questions, please feel free to contact: pengyuzhang@stu.xjtu.edu.cn

@@ -34,13 +34,12 @@ class GenomeDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        window_seq, window_ann, window_weights, window_tran_ann, window_tran_mask, window_phase_ann = self.data[idx]
+        window_seq, window_ann, window_mask = self.data[idx]
         one_hot_seq = sequence_encode(window_seq)
-        return (torch.tensor(one_hot_seq, dtype=torch.float), torch.tensor(window_ann, dtype=torch.long), torch.tensor(window_weights, dtype=torch.float),
-                torch.tensor(window_tran_ann, dtype=torch.long), torch.tensor(window_tran_mask, dtype=torch.float), torch.tensor(window_phase_ann, dtype=torch.long))
+        return (torch.tensor(one_hot_seq, dtype=torch.float), torch.tensor(window_ann, dtype=torch.float), torch.tensor(window_mask, dtype=torch.float))
 
 
-def read_h5_data(h5_path, species_list):
+def read_h5_data(h5_path, species_list, training_phase):
     datasets = []
 
     for species_num, species_name in enumerate(species_list):
@@ -54,35 +53,47 @@ def read_h5_data(h5_path, species_list):
                     sequences_dataset = grp['sequences']
                     sequences = sequences_dataset[:].astype(str)
                     annotations = grp['annotations'][:]
-                    weights = grp['weights'][:]
-                    transition_annotation = grp['transition_annotation'][:]
-                    transition_mask = grp['transition_mask'][:]
-                    phases = grp['phases'][:]
-                    for seq, ann, wgt, tran_ann, tran_mask, phase in zip(sequences, annotations, weights, transition_annotation, transition_mask, phases):
-                        genome_data.append((seq, ann, wgt, tran_ann, tran_mask, phase))
+                    mask = grp['masks'][:]
+
+                    for seq, ann, msk in zip(sequences, annotations, mask):
+                        genome_data.append((seq, ann, msk))
             genome_dataset = GenomeDataset(genome_data)
             datasets.append(genome_dataset)
         else:
             raise Exception(f'The processed data file of {species_name} does not exist, please check.')
+    if training_phase == 2:
+        for species_num, species_name in enumerate(species_list):
+            hdf5_path = f"{h5_path}/{species_name}_intergenic.h5"
+            if os.path.exists(hdf5_path):
+                print(f'Loading process data of species {species_num + 1}: {species_name}......')
+                with h5py.File(hdf5_path, 'r') as f:
+                    genome_data = []
+                    for chromosome in f.keys():
+                        grp = f[chromosome]
+                        sequences_dataset = grp['sequences']
+                        sequences = sequences_dataset[:].astype(str)
+                        annotations = grp['annotations'][:]
+                        mask = grp['masks'][:]
+
+                        for seq, ann, msk in zip(sequences, annotations, mask):
+                            genome_data.append((seq, ann, msk))
+                genome_dataset = GenomeDataset(genome_data)
+                datasets.append(genome_dataset)
+            else:
+                raise Exception(f'The processed data file of {species_name} does not exist, please check.')
 
     combined_dataset = ConcatDataset(datasets)
     return combined_dataset
 
 
-def data_load(h5_path, species_list, batch_size, sampled_ratio):
+def get_dataloader(h5_path, species_list, batch_size, num_workers, training_phase):
     start_time = time.time()
-    data = read_h5_data(h5_path, species_list)
+    data = read_h5_data(h5_path, species_list, training_phase)
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"The datasets are loaded in {elapsed_time} seconds.")
     total_length = len(data)
-    if sampled_ratio == 1:
-        dataloader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=0)
-        print(f"The number of samples is {total_length}")
-    else:
-        length_1 = int(sampled_ratio * total_length)
-        length_2 = total_length - length_1
-        subset, _ = random_split(data, [length_1, length_2])
-        dataloader = DataLoader(subset, batch_size=batch_size, shuffle=True, num_workers=0)
-        print(f"The number of samples is {length_1}")
+    dataloader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    print(f"The number of samples is {total_length}")
+
     return dataloader

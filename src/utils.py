@@ -1,9 +1,8 @@
 import random
 import os
 import numpy as np
-from tqdm import tqdm
 import torch.distributed as dist
-from model import model_architecture
+from model import model_architecture, model_architecture_without_MOE, model_architecture_without_transformer, model_architecture_without_transconv
 import torch
 import torch.nn as nn
 
@@ -55,9 +54,7 @@ def model_construction(device, window_size, flank_length, channels, dim_feedforw
     return model
 
 
-def model_load_weights(lineage, model, device):
-    path = f'saved_model/ANNEVO_{lineage}.pt'
-    # path = model_type + '.pt'
+def model_load_weights(path, model, device):
     state_dict = torch.load(path, map_location='cpu') if device.type == 'cpu' else torch.load(path)
 
     if list(state_dict.keys())[0].startswith('module.'):

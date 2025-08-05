@@ -23,6 +23,8 @@ def main():
                              "If specified, this score will be used as a filter for gene confidence scores.")
     parser.add_argument("--min_intron_length", type=int, default=1,
                         help="Minimum intron length of CDS-associated intron groups")
+    parser.add_argument("--at_ac_splicing", type=int, default=0,
+                        help="Enable AT-AC splicing mode")
     args = parser.parse_args()
 
     output_dir = os.path.dirname(args.output)
@@ -31,10 +33,10 @@ def main():
 
     start_time = time.time()
     gene_structure_decoding(args.genome, args.model_prediction_path, args.output, args.threads, args.average_threshold, args.max_threshold, args.min_cds_length, args.min_cds_score,
-                            args.min_intron_length)
+                            args.min_intron_length, args.at_ac_splicing)
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print(f"The gene decoding took {elapsed_time} seconds")
+    print(f"The gene decoding took {elapsed_time:.1f} seconds")
 
 
 if __name__ == "__main__":

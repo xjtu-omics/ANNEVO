@@ -9,15 +9,14 @@ import gc
 from collections import defaultdict
 
 
-def pred_and_decode(genome, lineage, chunk_num, output, threads, num_workers, batch_size, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads,
-                    num_blocks, num_branches, average_threshold, max_threshold, min_cds_length, min_cds_score, min_intron_length, num_classes):
+def pred_and_decode(genome, model_path, chunk_num, output, threads, num_workers, batch_size, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads,
+                    num_blocks, num_branches, average_threshold, max_threshold, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing, num_classes):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    torch.set_num_threads(threads)
     with open(genome) as fna:
         genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
 
     model = model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes, top_k=2)
-    model = model_load_weights(lineage, model, device)
+    model = model_load_weights(model_path, model, device)
     model.eval()
 
     chromosome_name = []
@@ -117,8 +116,6 @@ def pred_and_decode(genome, lineage, chunk_num, output, threads, num_workers, ba
             '''
 
             potential_gene_chromosome_forward = detect_gene_location(predictions_forward, length, average_threshold, max_threshold)
-            # print(potential_gene_chromosome_forward)
-            # potential_gene_chromosome_forward = [(198815, 211346)]
             if not potential_gene_chromosome_forward:
                 potential_gene_list.append(
                     (None, None, chromosome, 1, None, None)
@@ -131,7 +128,6 @@ def pred_and_decode(genome, lineage, chunk_num, output, threads, num_workers, ba
                          sequence_forward[location_start:location_end])
                     )
             potential_gene_chromosome_reverse = detect_gene_location(predictions_reverse, length, average_threshold, max_threshold)
-            # potential_gene_chromosome_reverse = []
             if not potential_gene_chromosome_reverse:
                 potential_gene_list.append(
                     (None, None, chromosome, -1, None, None)
@@ -146,7 +142,7 @@ def pred_and_decode(genome, lineage, chunk_num, output, threads, num_workers, ba
 
         results = []
         with ProcessPoolExecutor(max_workers=threads) as executor:
-            future_to_segment = {executor.submit(process_gene_segment, region, min_cds_length, min_cds_score, min_intron_length): region for region in potential_gene_list}
+            future_to_segment = {executor.submit(process_gene_segment, region, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing): region for region in potential_gene_list}
             for future in as_completed(future_to_segment):
                 try:
                     result = future.result()

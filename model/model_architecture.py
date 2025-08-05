@@ -56,9 +56,6 @@ class FeatureExtractor(nn.Module):
         for i in range(num_blocks):
             block = ConvBlock(in_channels=channels * (i + 1), out_channels=channels * (i + 2), kernel_size=3, padding=1)
             self.conv_blocks.append(block)
-        # for i in range(num_blocks):
-        #     block = ConvBlock(in_channels=channels * (2 ** i), out_channels=channels * (2**(i + 1)), kernel_size=3, padding=1)
-        #     self.conv_blocks.append(block)
 
         self.PositionalEncodingLayer = PositionalEncodingSinCos(d_model=channels * (num_blocks + 1), max_len=int((window_size + 2 * flank_length) / num_base_concat))
         transformer_encoder_layer = nn.TransformerEncoderLayer(d_model=channels * (num_blocks + 1), nhead=num_heads, dim_feedforward=dim_feedforward, batch_first=True)
@@ -154,20 +151,6 @@ class MoELayer(nn.Module):
         return output.view(batch_size, seq_len, d_model), topk_indices, topk_vals
 
 
-# class TaskLayer(nn.Module):
-#     def __init__(self, input_channels, num_classes, num_base_concat):
-#         super(TaskLayer, self).__init__()
-#         self.num_classes = num_classes
-#         self.num_base_concat = num_base_concat
-#
-#         self.fc = nn.Linear(input_channels, self.num_base_concat * num_classes)
-#         nn.init.kaiming_uniform_(self.fc.weight, mode='fan_in', nonlinearity='leaky_relu')
-#
-#     def forward(self, x):
-#         x = self.fc(x)
-#         return x
-
-
 class TransConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, padding):
         super(TransConvBlock, self).__init__()
@@ -228,7 +211,6 @@ class ANNEVO(nn.Module):
         self.task_layer = TaskLayer(channels, num_classes, self.num_base_concat, num_blocks)
 
     def forward(self, x):
-        batch_size = x.shape[0]
         x = self.FE(x)
         x, topk_indices, topk_vals = self.MoE(x)
         x = self.task_layer(x)

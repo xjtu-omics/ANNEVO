@@ -5,21 +5,20 @@ import os
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train deep learning model")
+    parser = argparse.ArgumentParser(description="One-step annotation")
     parser.add_argument('--genome', required=True, help='The genome to be predicted.')
-    parser.add_argument('--lineage', type=str, required=True,
-                        choices=["Fungi", "Embryophyta", "Invertebrate", "Vertebrate_other", "Mammalia"],
-                        help='Specify the lineage of the species to be predicted.'
-                             'Options: Fungi, Embryophyta, Invertebrate, Vertebrate_other, Mammalia.')
+    parser.add_argument('--model_path', required=True,
+                        help='Specify the path to the prediction model.')
 
     parser.add_argument("--output", required=True, help="Output GFF file")
-    parser.add_argument("--threads", type=int, default=8, help="Number of CPU cores used simultaneously.")
+    parser.add_argument("--threads", type=int, default=48, help="Number of CPU cores used simultaneously.")
     parser.add_argument('--chunk_num', type=int, default=5,
                         help='The maximum number of blocks to store the predicted file. Split the prediction probability file into chunks to avoid memory overflow. '
                              'When memory is insufficient, this value can be increased.')
 
     parser.add_argument('--batch_size', type=int, default=32, help='The number of samples in a batch.')
-    parser.add_argument('--num_workers', type=int, default=4, help='The number of CPU cores to load data in parallel')
+    parser.add_argument('--num_workers', type=int, default=8, help='The number of CPU cores to load data in parallel')
+
     parser.add_argument('--window_size', type=int, default=30720,
                         help='The number of bases in a window. Note: this parameter should be the same with it in data procession and gene decoding.')
     parser.add_argument('--flank_length', type=int, default=5120,
@@ -34,6 +33,7 @@ def main():
     parser.add_argument('--num_blocks', type=int, default=5, help='The number of Conv blocks. Note: this parameter should be the same with it in gene decoding.')
     parser.add_argument('--num_branches', type=int, default=8,
                         help='The number of simulated evolutionary branches. Note: this parameter should be the same with it in gene decoding.')
+
     parser.add_argument("--average_threshold", type=float, default=0.1,
                         help="The minimum threshold of average probability when judging whether a region is a potential gene region.")
     parser.add_argument("--max_threshold", type=float, default=0.5,
@@ -46,6 +46,9 @@ def main():
                              "If specified, this score will be used as a filter for gene confidence scores.")
     parser.add_argument("--min_intron_length", type=int, default=1,
                         help="Minimum intron length of CDS-associated intron groups")
+    parser.add_argument("--at_ac_splicing", type=int, default=0,
+                        help="Enable AT-AC splicing mode")
+
     args = parser.parse_args()
 
     output_dir = os.path.dirname(args.output)
@@ -53,12 +56,12 @@ def main():
         os.makedirs(output_dir)
 
     start_time = time.time()
-    pred_and_decode(args.genome, args.lineage, args.chunk_num, args.output, args.threads, args.num_workers, args.batch_size, args.window_size, args.flank_length, args.channels, args.dim_feedforward,
+    pred_and_decode(args.genome, args.model_path, args.chunk_num, args.output, args.threads, args.num_workers, args.batch_size, args.window_size, args.flank_length, args.channels, args.dim_feedforward,
                     args.num_encoder_layers, args.num_heads, args.num_blocks, args.num_branches, args.average_threshold, args.max_threshold, args.min_cds_length, args.min_cds_score,
-                    args.min_intron_length, num_classes=5)
+                    args.min_intron_length, args.at_ac_splicing, num_classes=5)
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print(f"The model prediction took {elapsed_time} seconds")
+    print(f"The model prediction took {elapsed_time:.1f} seconds")
 
 
 if __name__ == '__main__':

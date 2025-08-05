@@ -1,5 +1,4 @@
 from src.utils import model_construction, model_load_weights
-import glob
 from Bio import SeqIO
 import h5py
 from tqdm import tqdm
@@ -8,6 +7,8 @@ from torch.utils.data import DataLoader
 import torch
 import torch.nn.functional as F
 import gc
+import time
+import torch.nn as nn
 
 
 def reverse_complement(dna_sequence):
@@ -55,8 +56,8 @@ def predict_probability(model, windows, device, num_classes, batch_size, num_wor
     with torch.no_grad():
         for data in tqdm(dataloader):
             seqs = data
-            seqs = seqs.to(device).float()  # Shape of [batch_size, sequence_length, num_classes]
-            outputs, _, _ = model(seqs)
+            # outputs, _, _ = model(seqs)
+            outputs = model(seqs)
             if device.type == 'cpu':
                 outputs = outputs.reshape(-1, num_classes)
             else:
@@ -69,14 +70,14 @@ def predict_probability(model, windows, device, num_classes, batch_size, num_wor
     return all_outputs
 
 
-def nucleotide_prediction(genome, lineage, chunk_num, num_workers, prediction_path, batch_size, window_size, flank_length, channels, dim_feedforward,
+def nucleotide_prediction(genome, model_path, chunk_num, num_workers, prediction_path, batch_size, window_size, flank_length, channels, dim_feedforward,
                           num_encoder_layers, num_heads, num_blocks, num_branches, num_classes):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     with open(genome) as fna:
         genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
 
     model = model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes, top_k=2)
-    model = model_load_weights(lineage, model, device)
+    model = model_load_weights(model_path, model, device)
     model.eval()
 
     chromosome_name = []
@@ -100,6 +101,7 @@ def nucleotide_prediction(genome, lineage, chunk_num, num_workers, prediction_pa
         min_group[0].append(name)
         min_group[1] += length
 
+    file_saving_time = 0
     for chunk_order, (chromosome_name_list, _) in enumerate(chromosomes_groups):
         # for chunk_order, (chunk_start, chunk_end) in enumerate(chunk_index):
         print(f'Processing chunk {chunk_order}')
@@ -148,6 +150,8 @@ def nucleotide_prediction(genome, lineage, chunk_num, num_workers, prediction_pa
             predictions_reverse_rec = predictions_reverse[range_start:range_end][-length:]
             genome_predictions[chromosome] = [predictions_forward_rec, predictions_reverse_rec]
 
+        start_time1 = time.time()
+
         with h5py.File(f'{prediction_path}/model_predictions_{chunk_order}.h5', "w") as f:
             for chromosome, data in genome_predictions.items():
                 chr_group = f.create_group(chromosome)
@@ -155,9 +159,15 @@ def nucleotide_prediction(genome, lineage, chunk_num, num_workers, prediction_pa
                 for i, dataset in enumerate(data):
                     chr_group.create_dataset(labels[i], data=dataset)
 
+        end_time1 = time.time()
+        file_saving_time += (end_time1 - start_time1)
+
         windows_forward.clear()
         windows_reverse.clear()
         genome_predictions.clear()
 
         torch.cuda.empty_cache()
         gc.collect()
+
+    print(f"file saving cost {file_saving_time:.1f} seconds")
+

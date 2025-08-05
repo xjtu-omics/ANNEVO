@@ -72,7 +72,7 @@ def filter_gff(input_file, output_file):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Filter out genes with duplicate gene IDs in the annotations and their associated sub-features.")
+    parser = argparse.ArgumentParser(description="Filter GFF file to remove entries with duplicate gene IDs and their associated features.")
     parser.add_argument("--input_file", help="Path to the input GFF file")
     parser.add_argument("--output_file", help="Path to the output GFF file")
     args = parser.parse_args()

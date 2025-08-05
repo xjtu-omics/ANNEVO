@@ -6,6 +6,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import defaultdict
 import pandas as pd
 from src.HMM import viterbi_decoding, define_state
+import time
 
 
 def reverse_complement(dna_sequence):
@@ -39,9 +40,6 @@ def detect_gene_location(base_predictions, seq_length, min_threshold, max_thresh
                 count_above_threshold = np.sum(potential_genic_range > max_threshold)
                 if count_above_threshold >= 1:
                     genic_region.append((genic_region_start, end))
-                # above_threshold = np.any(potential_genic_range > max_threshold)
-                # if above_threshold:
-                #     genic_region.append((genic_region_start, end))
                 in_genic_region = False
             genic_region_start = start + step
     if in_genic_region:
@@ -136,15 +134,13 @@ def parse_ranges(lst, targets):
     return all_sublist_ranges
 
 
-def decode_gene_structure(location_start, predictions, sequence, min_cds_length, min_cds_score, min_intron_length):
+def decode_gene_structure(location_start, predictions, sequence, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
 
     intron_group = ['CDS0', 'CDS0_T', 'CDS1', 'CDS1_TA', 'CDS1_TG', 'CDS2']
 
-    min_intron_length_rare = 1
-    states_to_num, num_states, phase_0_columns, phase_1_columns, phase_2_columns, intron_columns = define_state(intron_group, min_intron_length, min_intron_length_rare)
+    states_to_num, num_states, phase_0_columns, phase_1_columns, phase_2_columns, intron_columns = define_state(intron_group, min_intron_length, at_ac_splicing)
     gene_structure_all_states = viterbi_decoding(predictions, sequence, states_to_num, num_states, phase_0_columns, phase_1_columns, phase_2_columns,
-                                                 intron_columns, intron_group, min_intron_length_rare, min_intron_length)
-    # print(gene_structure_all_states[0:100])
+                                                 intron_columns, intron_group, min_intron_length, at_ac_splicing)
     CDS_columns = phase_0_columns + phase_2_columns + phase_1_columns
     gene_structure_three_states = [
         0 if x in {states_to_num['intergenic']} else
@@ -180,7 +176,7 @@ def decode_gene_structure(location_start, predictions, sequence, min_cds_length,
     return filtered_gene_list
 
 
-def process_gene_segment(region, min_cds_length, min_cds_score, min_intron_length):
+def process_gene_segment(region, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
     location_start, location_end, seq_id, strand, prediction_slice, sequence_slice = region
     if location_start is None:
         gene_list = []
@@ -191,7 +187,8 @@ def process_gene_segment(region, min_cds_length, min_cds_score, min_intron_lengt
             sequence_slice,
             min_cds_length,
             min_cds_score,
-            min_intron_length
+            min_intron_length,
+            at_ac_splicing
         )
     return gene_list, seq_id, strand
 
@@ -241,16 +238,19 @@ def write_result(file, num, seq_id, result, length, strand):
     file.write(f'###\n')
 
 
-def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, average_threshold, max_threshold, min_cds_length, min_cds_score, min_intron_length):
+def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, average_threshold, max_threshold, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
     with open(genome) as fna:
         genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
     with open(output, 'w') as file:
-        file.write('# This output was generated with ANNEVO (version 2.0).\n')
+        file.write('# This output was generated with ANNEVO (v2.1).\n')
         file.write('# ANNEVO is a gene prediction tool written by YeLab.\n')
     seq_num = 1
     prediction_files = [f for f in os.listdir(model_prediction_path) if os.path.isfile(os.path.join(model_prediction_path, f))]
 
+    file_loading_time = 0
     for prediction_file in prediction_files:
+        start_time1 = time.time()
+
         genome_predictions = {}
         with h5py.File(f'{model_prediction_path}/{prediction_file}', 'r') as h5file:
             for chromosome in h5file.keys():
@@ -261,13 +261,14 @@ def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, aver
                     dataset = np.array(chr_group[label])
                     data.append(dataset)
                 genome_predictions[chromosome] = data
+
+        end_time1 = time.time()
+        file_loading_time += (end_time1 - start_time1)
+
         potential_gene_list = []
         chromosome_length = {}
 
         for chromosome in genome_predictions:
-            # if chromosome != 'NC_000002.12':
-            #     print(chromosome)
-            #     continue
             chromosome_seq_record = genome_seq[chromosome]
             sequence_forward = str(chromosome_seq_record.seq)
             sequence_reverse = reverse_complement(sequence_forward)
@@ -284,8 +285,6 @@ def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, aver
             '''
 
             potential_gene_chromosome_forward = detect_gene_location(predictions_forward, length, average_threshold, max_threshold)
-            # print(potential_gene_chromosome_forward)
-            # potential_gene_chromosome_forward = [(198815, 211346)]
             if not potential_gene_chromosome_forward:
                 potential_gene_list.append(
                     (None, None, chromosome, 1, None, None)
@@ -298,7 +297,6 @@ def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, aver
                          sequence_forward[location_start:location_end])
                     )
             potential_gene_chromosome_reverse = detect_gene_location(predictions_reverse, length, average_threshold, max_threshold)
-            # potential_gene_chromosome_reverse = []
             if not potential_gene_chromosome_reverse:
                 potential_gene_list.append(
                     (None, None, chromosome, -1, None, None)
@@ -313,7 +311,7 @@ def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, aver
 
         results = []
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
-            future_to_segment = {executor.submit(process_gene_segment, region, min_cds_length, min_cds_score, min_intron_length): region for region in potential_gene_list}
+            future_to_segment = {executor.submit(process_gene_segment, region, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing): region for region in potential_gene_list}
             for future in as_completed(future_to_segment):
                 try:
                     result = future.result()
@@ -367,3 +365,5 @@ def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, aver
                         file.flush()
 
                 seq_num += 1
+
+    print(f"file loading cost {file_loading_time:.1f} seconds")
