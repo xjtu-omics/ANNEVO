@@ -45,12 +45,6 @@ def model_construction(device, window_size, flank_length, channels, dim_feedforw
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = nn.DataParallel(model)
     model.to(device)
-    # device_ids = [0, 1, 2]
-    # if device.type != 'cpu' and torch.cuda.device_count() > 1:
-    #     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    #     model = nn.DataParallel(model, device_ids=device_ids)
-    # model.to(device)
-    # print(model)
     return model
 
 

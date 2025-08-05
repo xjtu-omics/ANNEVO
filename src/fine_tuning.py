@@ -57,15 +57,8 @@ def tuning(fine_tune_species_list, model_path, model_save_path, h5_path, learnin
            window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes=5, top_k=2)
-
-    if device.type != 'cpu' and torch.cuda.device_count() > 1:
-        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        model = nn.DataParallel(model)
-    model.to(device)
-    print(model)
-
     core_model = model.module if hasattr(model, 'module') else model
-
+    print(model)
     # freeze FE and MoE
     for param in core_model.FE.parameters():
         param.requires_grad = False
