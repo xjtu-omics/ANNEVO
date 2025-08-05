@@ -79,8 +79,9 @@ python generate_datasets.py --genome path_to_genome --annotation path_to_filtere
 # Train deep learning model
 python model_train.py --train_list path_to_train_species_list --val_list path_to_val_species_list --model_save_path path_to_saved_model --h5_path path_to_h5_data
 ```
-The `path_to_h5_data` directory should contain all H5-formatted data files used for both the training and validation sets.
+The `path_to_h5_data` directory should contain all H5-formatted data files used for both the training and validation sets.  
 The `train_species_list` and `val_species_list` files are plain text files that specify which species to use by matching the corresponding H5 filenames.
+Model parameter files are saved with the `.pt` file extension.
 
 For example, if you use ten species for training and name the corresponding H5 files as `species_name_1` through `species_name_10`, then train_species_list should be a .txt file containing the following lines:
 ```bash
@@ -102,6 +103,6 @@ python generate_datasets.py --genome path_to_genome --annotation path_to_filtere
 # Fine tuning deep learning model
 python fine_tune.py --fine_tune_species_list path_to_species_list --model_path path_to_model --model_save_path path_to_fine_tuned_model --h5_path path_to_h5_data
 ```
-The `path_to_h5_data` and `species_list` are the same as those described in the Re-train ANNEVO section.
+The `path_to_h5_data`, `species_list` and `model parameter files` are the same as those described in the Re-train ANNEVO section.
 # Contact
 If you have any questions, please feel free to contact: pengyuzhang@stu.xjtu.edu.cn
