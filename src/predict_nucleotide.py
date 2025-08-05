@@ -56,8 +56,7 @@ def predict_probability(model, windows, device, num_classes, batch_size, num_wor
     with torch.no_grad():
         for data in tqdm(dataloader):
             seqs = data
-            # outputs, _, _ = model(seqs)
-            outputs = model(seqs)
+            outputs, _, _ = model(seqs)
             outputs = outputs.reshape(-1, num_classes)
             # if device.type == 'cpu':
             #     outputs = outputs.reshape(-1, num_classes)
