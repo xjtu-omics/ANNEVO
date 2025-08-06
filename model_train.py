@@ -1,6 +1,7 @@
 import argparse
 from src.train import model_train
 from src.utils import init_dist, seed_everything
+import os
 
 
 def main():
@@ -36,6 +37,10 @@ def main():
         train_species_list = [line.strip() for line in file]
     with open(args.val_list, 'r') as file:
         val_species_list = [line.strip() for line in file]
+
+    output_dir = os.path.dirname(args.model_save_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     model_train(train_species_list, val_species_list, args.model_save_path, args.h5_path, args.learning_rate, args.epoch, args.batch_size, args.patience, args.warmup_steps,
                 args.window_size, args.flank_length, args.channels, args.dim_feedforward, args.num_encoder_layers,
