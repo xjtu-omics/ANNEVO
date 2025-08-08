@@ -61,7 +61,7 @@ def main():
                     args.min_intron_length, args.at_ac_splicing, num_classes=5)
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print(f"The model prediction took {elapsed_time:.1f} seconds")
+    print(f"The gene annotation took {elapsed_time:.1f} seconds")
 
 
 if __name__ == '__main__':
