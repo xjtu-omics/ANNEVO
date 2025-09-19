@@ -18,15 +18,15 @@ def error_checking_forward(max_mRNA, mask_forward_rec, sequence):
             if int(CDS_features[i + 1].location.start) - int(CDS_features[i].location.end) <= 30:
                 mask_forward_rec[int(CDS_features[i].location.end):int(CDS_features[i + 1].location.start)] = 0
 
-    CDS_seq = ''
-    for CDS_feature in CDS_features:
-        CDS_seq += sequence[int(CDS_feature.location.start):int(CDS_feature.location.end)]
-    # Missing or incorrect start codon
-    if CDS_seq[0:3] != 'ATG':
-        mask_forward_rec[int(max_mRNA.location.start):int(first_CDS.location.start)] = 0
-    # Missing or incorrect stop codon
-    if CDS_seq[-3:] not in ['TAA', 'TAG', 'TGA']:
-        mask_forward_rec[int(last_CDS.location.end):int(max_mRNA.location.end)] = 0
+    # CDS_seq = ''
+    # for CDS_feature in CDS_features:
+    #     CDS_seq += sequence[int(CDS_feature.location.start):int(CDS_feature.location.end)]
+    # # Missing or incorrect start codon
+    # if CDS_seq[0:3] != 'ATG':
+    #     mask_forward_rec[int(max_mRNA.location.start):int(first_CDS.location.start)] = 0
+    # # Missing or incorrect stop codon
+    # if CDS_seq[-3:] not in ['TAA', 'TAG', 'TGA']:
+    #     mask_forward_rec[int(last_CDS.location.end):int(max_mRNA.location.end)] = 0
 
     return mask_forward_rec
 
@@ -43,15 +43,15 @@ def error_checking_reverse(max_mRNA, mask_reverse_rec, sequence):
             if int(CDS_features[i].location.start) - int(CDS_features[i + 1].location.end) <= 30:
                 mask_reverse_rec[int(CDS_features[i + 1].location.end):int(CDS_features[i].location.start)] = 0
 
-    CDS_seq = ''
-    for CDS_feature in CDS_features:
-        CDS_seq = sequence[int(CDS_feature.location.start):int(CDS_feature.location.end)] + CDS_seq
-    # Missing or incorrect start codon
-    if CDS_seq[-3:] != 'CAT':
-        mask_reverse_rec[int(first_CDS.location.end):int(max_mRNA.location.end)] = 0
-    # Missing or incorrect stop codon
-    if CDS_seq[0:3] not in ['TTA', 'CTA', 'TCA']:
-        mask_reverse_rec[int(max_mRNA.location.start):int(last_CDS.location.start)] = 0
+    # CDS_seq = ''
+    # for CDS_feature in CDS_features:
+    #     CDS_seq = sequence[int(CDS_feature.location.start):int(CDS_feature.location.end)] + CDS_seq
+    # # Missing or incorrect start codon
+    # if CDS_seq[-3:] != 'CAT':
+    #     mask_reverse_rec[int(first_CDS.location.end):int(max_mRNA.location.end)] = 0
+    # # Missing or incorrect stop codon
+    # if CDS_seq[0:3] not in ['TTA', 'CTA', 'TCA']:
+    #     mask_reverse_rec[int(max_mRNA.location.start):int(last_CDS.location.start)] = 0
 
     return mask_reverse_rec
 
