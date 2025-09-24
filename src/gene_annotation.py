@@ -17,6 +17,7 @@ def pred_and_decode(genome, model_path, chunk_num, output, threads, num_workers,
 
     model = model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes, top_k=2)
     model = model_load_weights(model_path, model, device)
+    model.to(device)
     model.eval()
 
     chromosome_name = []
