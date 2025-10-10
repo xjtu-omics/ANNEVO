@@ -2,9 +2,11 @@
 ANNEVO is a deep learning-based ab initio gene annotation method for understanding genome function. ANNEVO is capable of modeling distal sequence information and joint evolutionary relationships across diverse species directly from genomes.  
 
 ![GitHub Image](https://raw.githubusercontent.com/xjtu-omics/ANNEVO/main/img/Fig1.png)
-## License Notice
-While ANNEVO is released under the GPL-3.0 license, its use is restricted to non-commercial purposes only. This includes use by academic institutions, government agencies, and non-profit or not-for-profit organizations.  
-A commercial license of the software is available and licensed through Xi’an Jiaotong University. For commercial use or licensing inquiries, please contact: Pengyu Zhang (pengyuzhang@stu.xjtu.edu.cn) or Kai Ye (kaiye@xjtu.edu.cn).  
+## License
+ANNEVO is distributed under the ANNEVO Non-Commercial License. It is free for academic and non-profit research use.  
+Commercial use requires a separate license. For commercial use or licensing inquiries, please contact: Pengyu Zhang (pengyuzhang@stu.xjtu.edu.cn) or Kai Ye (kaiye@xjtu.edu.cn).  
+Note: ANNEVO is not licensed under the GNU GPL or any OSI-approved open source license.
+It is distributed under the ANNEVO Non-Commercial License, which restricts commercial use.
 
 # Installation
 We recommend using the conda virtual environment to install ANNEVO (Platform: Linux).
