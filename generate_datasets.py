@@ -16,8 +16,10 @@ def main():
     parser.add_argument("--keep_intergenic_sample", type=int, default=0, help="")
     args = parser.parse_args()
 
-    path_name = os.path.dirname(args.output_file)
-    os.makedirs(path_name, exist_ok=True)
+    output_dir = os.path.dirname(args.output_file)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     start_time = time.time()
     generate_h5_file(args.genome, args.annotation, args.output_file, args.threads, args.window_size, args.flank_length, args.keep_intergenic_sample)
     end_time = time.time()

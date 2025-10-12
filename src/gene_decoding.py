@@ -1,17 +1,12 @@
 import numpy as np
 from Bio import SeqIO
 import h5py
-import os
+from src.predict_nucleotide import reverse_complement
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import defaultdict
 import pandas as pd
 from src.HMM import viterbi_decoding, define_state
 import time
-
-
-def reverse_complement(dna_sequence):
-    complement_map = str.maketrans('ATGCRMYWKBSHDVNXatgcrmywkbshdvnx', 'TACGRMYWKBSHDVNXtacgrmywkbshdvnx')
-    return dna_sequence.translate(complement_map)[::-1]
 
 
 def detect_gene_location(base_predictions, seq_length, min_threshold, max_threshold):
@@ -176,11 +171,24 @@ def decode_gene_structure(location_start, predictions, sequence, min_cds_length,
     return filtered_gene_list
 
 
-def process_gene_segment(region, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
+def process_gene_segment(region, model_prediction_path, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
     location_start, location_end, seq_id, strand, prediction_slice, sequence_slice = region
+
     if location_start is None:
         gene_list = []
     else:
+        with h5py.File(model_prediction_path, 'r') as f:
+            if strand == 1:
+                prediction_slice = f[seq_id]['predictions_forward'][location_start:location_end]
+            else:
+                prediction_slice = f[seq_id]['predictions_reverse'][location_start:location_end]
+
+        sequence_forward = str(_global_genome_seq[seq_id].seq).upper()
+        if strand == 1:
+            sequence_slice = sequence_forward[location_start:location_end]
+        else:
+            sequence_slice = reverse_complement(sequence_forward)[location_start:location_end]
+
         gene_list = decode_gene_structure(
             location_start,
             prediction_slice,
@@ -238,132 +246,170 @@ def write_result(file, num, seq_id, result, length, strand):
     file.write(f'###\n')
 
 
-def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, average_threshold, max_threshold, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
+def decode_and_write(potential_gene_list, chromosome_length, model_prediction_path, seq_num, cpu_num, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing, output):
+    results = []
+    with ProcessPoolExecutor(max_workers=cpu_num) as executor:
+        future_to_segment = {executor.submit(process_gene_segment, region, model_prediction_path, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing): region for region in potential_gene_list}
+        for future in as_completed(future_to_segment):
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                print(f"Process failed: {str(e)}")
+                continue
+
+    grouped_results = defaultdict(list)
+    for gene_set, seq_id, strand in results:
+        decode_gene = (gene_set, strand)
+        grouped_results[seq_id].append(decode_gene)
+
+    with open(output, 'a') as file:
+        for chromosome in grouped_results:
+            gene_list_forward = []
+            gene_list_reverse = []
+            length = chromosome_length[chromosome]
+            gene_num = 0
+            for gene_set, strand in grouped_results[chromosome]:
+                if gene_set:
+                    for gene in gene_set:
+                        if strand == 1:
+                            gene_list_forward.append(gene)
+                        else:
+                            gene_list_reverse.append(gene)
+
+            gene_list_forward.sort(key=lambda x: x[-1])
+            gene_list_reverse.sort(key=lambda x: x[-1], reverse=True)
+            file.write('#\n')
+            file.write(f'# ----- prediction on sequence number {seq_num} (length = {length}, name = {chromosome}) -----\n')
+            file.write('#\n')
+            file.write(f'# Predicted genes for sequence number {seq_num} on forward strands\n')
+            if not gene_list_forward:
+                file.write(f'# None\n')
+                file.write(f'###\n')
+            else:
+                for gene in gene_list_forward:
+                    write_result(file, gene_num, chromosome, gene, length=length, strand=1)
+                    gene_num += 1
+                    file.flush()
+            file.write('#\n')
+            file.write(f'# Predicted genes for sequence number {seq_num} on reverse strands\n')
+            if not gene_list_reverse:
+                file.write(f'# None\n')
+                file.write(f'###\n')
+            else:
+                for gene in gene_list_reverse:
+                    write_result(file, gene_num, chromosome, gene, length=length, strand=-1)
+                    gene_num += 1
+                    file.flush()
+            seq_num += 1
+    return seq_num
+
+
+def get_gene_region(genome_predictions, genome_seq, average_threshold, max_threshold):
+    potential_gene_list = []
+    chromosome_length = {}
+    for chromosome in genome_predictions:
+        predictions_forward, predictions_reverse = genome_predictions[chromosome]
+        chromosome_seq_record = genome_seq[chromosome]
+        sequence_forward = str(chromosome_seq_record.seq).upper()
+        sequence_reverse = reverse_complement(sequence_forward)
+        length = len(sequence_forward)
+        chromosome_length[chromosome] = length
+        '''
+        position index conversion
+        The position tuple in the forward array is (a, b) 
+        The position tuple in the forward chains of gff is (a + 1, b)
+        The position tuple in the reverse chains of gff is (length - b + 1, length - (a + 1) + 1) = (length - b + 1, length - a)
+        The position tuple in the reverse array is (length - b, length - a) 
+        '''
+
+        potential_gene_chromosome_forward = detect_gene_location(predictions_forward, length, average_threshold, max_threshold)
+        if not potential_gene_chromosome_forward:
+            potential_gene_list.append(
+                (None, None, chromosome, 1, None, None)
+            )
+        else:
+            for location_start, location_end in potential_gene_chromosome_forward:
+                potential_gene_list.append(
+                    (location_start, location_end, chromosome, 1,
+                     None,
+                     None)
+                )
+        potential_gene_chromosome_reverse = detect_gene_location(predictions_reverse, length, average_threshold, max_threshold)
+        if not potential_gene_chromosome_reverse:
+            potential_gene_list.append(
+                (None, None, chromosome, -1, None, None)
+            )
+        else:
+            for location_start, location_end in potential_gene_chromosome_reverse:
+                potential_gene_list.append(
+                    (location_start, location_end, chromosome, -1,
+                     None,
+                     None)
+                )
+
+        # potential_gene_chromosome_forward = detect_gene_location(predictions_forward, length, average_threshold, max_threshold)
+        # if not potential_gene_chromosome_forward:
+        #     potential_gene_list.append(
+        #         (None, None, chromosome, 1, None, None)
+        #     )
+        # else:
+        #     for location_start, location_end in potential_gene_chromosome_forward:
+        #         potential_gene_list.append(
+        #             (location_start, location_end, chromosome, 1,
+        #              predictions_forward[location_start:location_end].copy(),
+        #              sequence_forward[location_start:location_end])
+        #         )
+        # potential_gene_chromosome_reverse = detect_gene_location(predictions_reverse, length, average_threshold, max_threshold)
+        # if not potential_gene_chromosome_reverse:
+        #     potential_gene_list.append(
+        #         (None, None, chromosome, -1, None, None)
+        #     )
+        # else:
+        #     for location_start, location_end in potential_gene_chromosome_reverse:
+        #         potential_gene_list.append(
+        #             (location_start, location_end, chromosome, -1,
+        #              predictions_reverse[location_start:location_end].copy(),
+        #              sequence_reverse[location_start:location_end])
+        #         )
+    return chromosome_length, potential_gene_list
+
+
+def gene_structure_decoding(genome, model_prediction_path, genome_size_threshold, output, cpu_num, average_threshold, max_threshold, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
     with open(genome) as fna:
         genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
+    global _global_genome_seq
+    _global_genome_seq = genome_seq
     with open(output, 'w') as file:
-        file.write('# This output was generated with ANNEVO (v2.1).\n')
-        file.write('# ANNEVO is a gene prediction tool written by YeLab.\n')
+        file.write('# This output was generated with ANNEVO (v2.2).\n')
+        file.write('# ANNEVO is an ab initio gene annotation tool written by YeLab.\n')
     seq_num = 1
-    prediction_files = [f for f in os.listdir(model_prediction_path) if os.path.isfile(os.path.join(model_prediction_path, f))]
-
     file_loading_time = 0
-    for prediction_file in prediction_files:
-        start_time1 = time.time()
+    cumulative_size = 0
 
-        genome_predictions = {}
-        with h5py.File(f'{model_prediction_path}/{prediction_file}', 'r') as h5file:
-            for chromosome in h5file.keys():
-                data = []
-                chr_group = h5file[chromosome]
-                labels = ['predictions_forward', 'predictions_reverse']
-                for label in labels:
-                    dataset = np.array(chr_group[label])
-                    data.append(dataset)
-                genome_predictions[chromosome] = data
+    genome_predictions = {}
 
-        end_time1 = time.time()
-        file_loading_time += (end_time1 - start_time1)
+    with h5py.File(f'{model_prediction_path}', 'r') as h5file:
+        for chr_name in h5file.keys():
+            start_time = time.time()
+            chr_group = h5file[chr_name]
+            predictions_forward = np.array(chr_group['predictions_forward'])
+            predictions_reverse = np.array(chr_group['predictions_reverse'])
+            end_time = time.time()
+            file_loading_time += (end_time - start_time)
+            genome_predictions[chr_name] = [predictions_forward, predictions_reverse]
+            cumulative_size += len(predictions_forward)
 
-        potential_gene_list = []
-        chromosome_length = {}
-
-        for chromosome in genome_predictions:
-            chromosome_seq_record = genome_seq[chromosome]
-            sequence_forward = str(chromosome_seq_record.seq)
-            sequence_reverse = reverse_complement(sequence_forward)
-            length = len(sequence_forward)
-            chromosome_length[chromosome] = length
-            predictions_forward, predictions_reverse = genome_predictions[chromosome]
-
-            '''
-            position index conversion
-            The position tuple in the forward array is (a, b) 
-            The position tuple in the forward chains of gff is (a + 1, b)
-            The position tuple in the reverse chains of gff is (length - b + 1, length - (a + 1) + 1) = (length - b + 1, length - a)
-            The position tuple in the reverse array is (length - b, length - a) 
-            '''
-
-            potential_gene_chromosome_forward = detect_gene_location(predictions_forward, length, average_threshold, max_threshold)
-            if not potential_gene_chromosome_forward:
-                potential_gene_list.append(
-                    (None, None, chromosome, 1, None, None)
-                )
-            else:
-                for location_start, location_end in potential_gene_chromosome_forward:
-                    potential_gene_list.append(
-                        (location_start, location_end, chromosome, 1,
-                         predictions_forward[location_start:location_end],
-                         sequence_forward[location_start:location_end])
-                    )
-            potential_gene_chromosome_reverse = detect_gene_location(predictions_reverse, length, average_threshold, max_threshold)
-            if not potential_gene_chromosome_reverse:
-                potential_gene_list.append(
-                    (None, None, chromosome, -1, None, None)
-                )
-            else:
-                for location_start, location_end in potential_gene_chromosome_reverse:
-                    potential_gene_list.append(
-                        (location_start, location_end, chromosome, -1,
-                         predictions_reverse[location_start:location_end],
-                         sequence_reverse[location_start:location_end])
-                    )
-
-        results = []
-        with ProcessPoolExecutor(max_workers=cpu_num) as executor:
-            future_to_segment = {executor.submit(process_gene_segment, region, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing): region for region in potential_gene_list}
-            for future in as_completed(future_to_segment):
-                try:
-                    result = future.result()
-                    results.append(result)
-                except Exception as e:
-                    print(f"Process failed: {str(e)}")
-                    continue
-
-        grouped_results = defaultdict(list)
-        for gene_set, seq_id, strand in results:
-            decode_gene = (gene_set, strand)
-            grouped_results[seq_id].append(decode_gene)
-
-        with open(output, 'a') as file:
-            for chromosome in grouped_results:
-                gene_list_forward = []
-                gene_list_reverse = []
-                length = chromosome_length[chromosome]
-                gene_num = 0
-                for gene_set, strand in grouped_results[chromosome]:
-                    if gene_set:
-                        for gene in gene_set:
-                            if strand == 1:
-                                gene_list_forward.append(gene)
-                            else:
-                                gene_list_reverse.append(gene)
-
-                gene_list_forward.sort(key=lambda x: x[-1])
-                gene_list_reverse.sort(key=lambda x: x[-1], reverse=True)
-                file.write('#\n')
-                file.write(f'# ----- prediction on sequence number {seq_num} (length = {length}, name = {chromosome}) -----\n')
-                file.write('#\n')
-                file.write(f'# Predicted genes for sequence number {seq_num} on forward strands\n')
-                if not gene_list_forward:
-                    file.write(f'# None\n')
-                    file.write(f'###\n')
-                else:
-                    for gene in gene_list_forward:
-                        write_result(file, gene_num, chromosome, gene, length=length, strand=1)
-                        gene_num += 1
-                        file.flush()
-                file.write('#\n')
-                file.write(f'# Predicted genes for sequence number {seq_num} on reverse strands\n')
-                if not gene_list_reverse:
-                    file.write(f'# None\n')
-                    file.write(f'###\n')
-                else:
-                    for gene in gene_list_reverse:
-                        write_result(file, gene_num, chromosome, gene, length=length, strand=-1)
-                        gene_num += 1
-                        file.flush()
-
-                seq_num += 1
+            if cumulative_size > genome_size_threshold:
+                chromosome_length, potential_gene_list = get_gene_region(genome_predictions, genome_seq, average_threshold, max_threshold)
+                del genome_predictions
+                seq_num = decode_and_write(potential_gene_list, chromosome_length, model_prediction_path, seq_num, cpu_num, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing, output)
+                # Reinitialization
+                cumulative_size = 0
+                genome_predictions = {}
+        if genome_predictions:
+            chromosome_length, potential_gene_list = get_gene_region(genome_predictions, genome_seq, average_threshold, max_threshold)
+            del genome_predictions
+            seq_num = decode_and_write(potential_gene_list, chromosome_length, model_prediction_path, seq_num, cpu_num, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing, output)
 
     print(f"file loading cost {file_loading_time:.1f} seconds")

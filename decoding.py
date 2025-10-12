@@ -9,6 +9,9 @@ def main():
     parser = argparse.ArgumentParser(description="Decode gene structure based on deep learning model's prediction.")
     parser.add_argument("--genome", required=True, help="Genome to be decoded.")
     parser.add_argument("--model_prediction_path", required=True, help="Path to the probability predicted by the model.")
+    parser.add_argument('--genome_size_threshold', type=int, default=100 * 1024 * 1024,
+                        help='Threshold for the total genome size per operation. '
+                             'By default, whenever the cumulative size of contigs exceeds this threshold (e.g., 100 Mb), a prediction or decoding operation will be performed.')
     parser.add_argument("--output", required=True, help="Output GFF file")
     parser.add_argument("--threads", type=int, default=8, help="Number of CPU cores used simultaneously.")
     parser.add_argument("--average_threshold", type=float, default=0.1,
@@ -32,7 +35,7 @@ def main():
         os.makedirs(output_dir)
 
     start_time = time.time()
-    gene_structure_decoding(args.genome, args.model_prediction_path, args.output, args.threads, args.average_threshold, args.max_threshold, args.min_cds_length, args.min_cds_score,
+    gene_structure_decoding(args.genome, args.model_prediction_path, args.genome_size_threshold, args.output, args.threads, args.average_threshold, args.max_threshold, args.min_cds_length, args.min_cds_score,
                             args.min_intron_length, args.at_ac_splicing)
     end_time = time.time()
     elapsed_time = end_time - start_time

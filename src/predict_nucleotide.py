@@ -70,7 +70,36 @@ def predict_probability(model, windows, device, num_classes, batch_size, num_wor
     return all_outputs
 
 
-def nucleotide_prediction(genome, model_path, chunk_num, num_workers, prediction_path, batch_size, window_size, flank_length, channels, dim_feedforward,
+def pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
+              seq_id_chunk, seq_length_chunk, offset, window_size):
+    predictions_forward = predict_probability(model, windows_forward, device, num_classes, batch_size, num_workers)
+    predictions_reverse = predict_probability(model, windows_reverse, device, num_classes, batch_size, num_workers)
+    genome_predictions = {}
+    for i, seq_id in enumerate(seq_id_chunk):
+        length = seq_length_chunk[i]
+        range_start = offset[i] * window_size
+        range_end = offset[i + 1] * window_size
+        predictions_forward_rec = predictions_forward[range_start:range_end][:length]
+        predictions_reverse_rec = predictions_reverse[range_start:range_end][-length:]
+        genome_predictions[seq_id] = [predictions_forward_rec, predictions_reverse_rec]
+
+    return genome_predictions
+
+
+def save_prediction_result(genome_predictions, prediction_path):
+    start_time = time.time()
+    with h5py.File(f'{prediction_path}', "a") as f:
+        for seq_id, data in genome_predictions.items():
+            grp = f.create_group(seq_id)
+            pred_fwd_rec = data[0]
+            pred_rev_rec = data[1]
+            grp.create_dataset("predictions_forward", data=pred_fwd_rec)
+            grp.create_dataset("predictions_reverse", data=pred_rev_rec)
+    end_time = time.time()
+    return end_time - start_time
+
+
+def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers, prediction_path, batch_size, window_size, flank_length, channels, dim_feedforward,
                           num_encoder_layers, num_heads, num_blocks, num_branches, num_classes):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     with open(genome) as fna:
@@ -80,94 +109,72 @@ def nucleotide_prediction(genome, model_path, chunk_num, num_workers, prediction
     model = model_load_weights(model_path, model, device)
     model.eval()
 
-    chromosome_name = []
-    chromosome_length = []
-    for chromosome in genome_seq:
-        chromosome_name.append(chromosome)
-        chromosome_seq_record = genome_seq[chromosome]
-        sequence = str(chromosome_seq_record.seq).upper()
-        length = len(sequence)
-        chromosome_length.append(length)
-    print(f'The number of sequence in this species is {len(chromosome_name)}')
-    print(f'The prediction file will be saved in {min(chunk_num, len(chromosome_name))} blocks.')
-    chunk_num = min(chunk_num, len(chromosome_name))
-
-    chromosomes = list(zip(chromosome_name, chromosome_length))
-    chromosomes.sort(key=lambda x: x[1], reverse=True)
-    chromosomes_groups = [([], 0) for _ in range(chunk_num)]
-    chromosomes_groups = [[list(chromosomes_group[0]), chromosomes_group[1]] for chromosomes_group in chromosomes_groups]
-    for name, length in chromosomes:
-        min_group = min(chromosomes_groups, key=lambda x: x[1])
-        min_group[0].append(name)
-        min_group[1] += length
-
     file_saving_time = 0
-    for chunk_order, (chromosome_name_list, _) in enumerate(chromosomes_groups):
-        # for chunk_order, (chunk_start, chunk_end) in enumerate(chunk_index):
-        print(f'Processing chunk {chunk_order}')
-        seq_id_chunk = chromosome_name_list
-        seq_length_chunk = []
-        windows_forward = []
-        windows_reverse = []
-        genome_predictions = {}
-        offset = [0]
-        count = 0
-        for chromosome in seq_id_chunk:
-            chromosome_seq_record = genome_seq[chromosome]
-            sequence_forward = str(chromosome_seq_record.seq).upper()
-            windows_reverse_disorder = []
-            length = len(sequence_forward)
-            seq_length_chunk.append(length)
-            for start in range(0, length, window_size):
-                end = start + window_size
-                if start - flank_length < 0:
-                    if end + flank_length <= length:
-                        pad_before = 'X' * (flank_length - start)
-                        window_seq_forward = pad_before + sequence_forward[0:end + flank_length]
-                    else:
-                        pad_before = 'X' * (flank_length - start)
-                        pad_after = 'X' * (end + flank_length - length)
-                        window_seq_forward = pad_before + sequence_forward[0:length] + pad_after
-                elif end + flank_length > length:
-                    pad_after = 'X' * (end + flank_length - length)
-                    window_seq_forward = sequence_forward[start - flank_length:length] + pad_after
+
+    windows_forward = []
+    windows_reverse = []
+    offset = [0]
+    count = 0
+    cumulative_size = 0
+    seq_id_chunk = []
+    seq_length_chunk = []
+    for chromosome in genome_seq:
+        chromosome_seq_record = genome_seq[chromosome]
+        sequence_forward = str(chromosome_seq_record.seq).upper()
+        length = len(sequence_forward)
+        cumulative_size = cumulative_size + length
+        windows_reverse_disorder = []
+        seq_id_chunk.append(chromosome)
+        seq_length_chunk.append(length)
+        for start in range(0, length, window_size):
+            end = start + window_size
+            if start - flank_length < 0:
+                if end + flank_length <= length:
+                    pad_before = 'X' * (flank_length - start)
+                    window_seq_forward = pad_before + sequence_forward[0:end + flank_length]
                 else:
-                    window_seq_forward = sequence_forward[start - flank_length:end + flank_length]
-                windows_forward.append(window_seq_forward)
-                windows_reverse_disorder.append(reverse_complement(window_seq_forward))
-                count += 1
-            windows_reverse += windows_reverse_disorder[::-1]
-            offset.append(count)
+                    pad_before = 'X' * (flank_length - start)
+                    pad_after = 'X' * (end + flank_length - length)
+                    window_seq_forward = pad_before + sequence_forward[0:length] + pad_after
+            elif end + flank_length > length:
+                pad_after = 'X' * (end + flank_length - length)
+                window_seq_forward = sequence_forward[start - flank_length:length] + pad_after
+            else:
+                window_seq_forward = sequence_forward[start - flank_length:end + flank_length]
+            windows_forward.append(window_seq_forward)
+            windows_reverse_disorder.append(reverse_complement(window_seq_forward))
+            count += 1
+        windows_reverse += windows_reverse_disorder[::-1]
+        offset.append(count)
 
-        predictions_forward = predict_probability(model, windows_forward, device, num_classes, batch_size, num_workers)
-        predictions_reverse = predict_probability(model, windows_reverse, device, num_classes, batch_size, num_workers)
+        if cumulative_size > genome_size_threshold:
+            genome_predictions = pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
+                                           seq_id_chunk, seq_length_chunk, offset, window_size)
+            runtime = save_prediction_result(genome_predictions, prediction_path)
+            file_saving_time += runtime
 
-        for i, chromosome in enumerate(seq_id_chunk):
-            length = seq_length_chunk[i]
-            range_start = offset[i] * window_size
-            range_end = offset[i + 1] * window_size
-            predictions_forward_rec = predictions_forward[range_start:range_end][:length]
-            predictions_reverse_rec = predictions_reverse[range_start:range_end][-length:]
-            genome_predictions[chromosome] = [predictions_forward_rec, predictions_reverse_rec]
-
-        start_time1 = time.time()
-
-        with h5py.File(f'{prediction_path}/model_predictions_{chunk_order}.h5', "w") as f:
-            for chromosome, data in genome_predictions.items():
-                chr_group = f.create_group(chromosome)
-                labels = ['predictions_forward', 'predictions_reverse']
-                for i, dataset in enumerate(data):
-                    chr_group.create_dataset(labels[i], data=dataset)
-
-        end_time1 = time.time()
-        file_saving_time += (end_time1 - start_time1)
-
-        windows_forward.clear()
-        windows_reverse.clear()
-        genome_predictions.clear()
-
-        torch.cuda.empty_cache()
-        gc.collect()
+            # Reinitialization
+            windows_forward = []
+            windows_reverse = []
+            offset = [0]
+            count = 0
+            cumulative_size = 0
+            seq_id_chunk = []
+            seq_length_chunk = []
+    if seq_id_chunk:
+        genome_predictions = pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
+                                       seq_id_chunk, seq_length_chunk, offset, window_size)
+        runtime = save_prediction_result(genome_predictions, prediction_path)
+        file_saving_time += runtime
 
     print(f"file saving cost {file_saving_time:.1f} seconds")
 
+    del windows_forward
+    del windows_reverse
+    del seq_id_chunk
+    del seq_length_chunk
+    del genome_predictions
+    del model
+    del genome_seq
+    torch.cuda.empty_cache()
+    gc.collect()

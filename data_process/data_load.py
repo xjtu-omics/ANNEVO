@@ -26,74 +26,38 @@ def sequence_encode(seq):
     return [mapping[s] for s in seq]
 
 
-class GenomeDataset(Dataset):
-    def __init__(self, genome_data):
-        self.data = genome_data
+class H5GenomeDataset(Dataset):
+    def __init__(self, h5_path):
+        self.h5_path = h5_path
+        self.index_map = []  # (chrom, idx)
+
+        with h5py.File(h5_path, "r") as f:
+            for chrom in f.keys():
+                n = len(f[chrom]["sequences"])
+                self.index_map.extend([(chrom, i) for i in range(n)])
 
     def __len__(self):
-        return len(self.data)
+        return len(self.index_map)
 
     def __getitem__(self, idx):
-        window_seq, window_ann, window_mask = self.data[idx]
-        one_hot_seq = sequence_encode(window_seq)
-        return (torch.tensor(one_hot_seq, dtype=torch.float), torch.tensor(window_ann, dtype=torch.float), torch.tensor(window_mask, dtype=torch.float))
+        chrom, i = self.index_map[idx]
+        with h5py.File(self.h5_path, "r") as f:
+            # seq = f[chrom]["sequences"][i].astype(str)
+            seq = f[chrom]["sequences"][i].decode("utf-8")
+            ann = f[chrom]["annotations"][i]
+            msk = f[chrom]["masks"][i]
+        one_hot = sequence_encode(seq)
+        return (
+            torch.tensor(one_hot, dtype=torch.float),
+            torch.tensor(ann, dtype=torch.float),
+            torch.tensor(msk, dtype=torch.float),
+        )
 
 
-def read_h5_data(h5_path, species_list, training_phase):
-    datasets = []
-
-    for species_num, species_name in enumerate(species_list):
-        hdf5_path = f"{h5_path}/{species_name}.h5"
-        if os.path.exists(hdf5_path):
-            print(f'Loading process data of species {species_num+1}: {species_name}......')
-            with h5py.File(hdf5_path, 'r') as f:
-                genome_data = []
-                for chromosome in f.keys():
-                    grp = f[chromosome]
-                    sequences_dataset = grp['sequences']
-                    sequences = sequences_dataset[:].astype(str)
-                    annotations = grp['annotations'][:]
-                    mask = grp['masks'][:]
-
-                    for seq, ann, msk in zip(sequences, annotations, mask):
-                        genome_data.append((seq, ann, msk))
-            genome_dataset = GenomeDataset(genome_data)
-            datasets.append(genome_dataset)
-        else:
-            raise Exception(f'The processed data file of {species_name} does not exist, please check.')
-    if training_phase == 2:
-        for species_num, species_name in enumerate(species_list):
-            hdf5_path = f"{h5_path}/{species_name}_intergenic.h5"
-            if os.path.exists(hdf5_path):
-                print(f'Loading process data of species {species_num + 1}: {species_name}......')
-                with h5py.File(hdf5_path, 'r') as f:
-                    genome_data = []
-                    for chromosome in f.keys():
-                        grp = f[chromosome]
-                        sequences_dataset = grp['sequences']
-                        sequences = sequences_dataset[:].astype(str)
-                        annotations = grp['annotations'][:]
-                        mask = grp['masks'][:]
-
-                        for seq, ann, msk in zip(sequences, annotations, mask):
-                            genome_data.append((seq, ann, msk))
-                genome_dataset = GenomeDataset(genome_data)
-                datasets.append(genome_dataset)
-            else:
-                raise Exception(f'The processed data file of {species_name} does not exist, please check.')
-
-    combined_dataset = ConcatDataset(datasets)
-    return combined_dataset
-
-
-def get_dataloader(h5_path, species_list, batch_size, num_workers, training_phase):
-    start_time = time.time()
-    data = read_h5_data(h5_path, species_list, training_phase)
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"The datasets are loaded in {elapsed_time} seconds.")
-    total_length = len(data)
-    dataloader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    print(f"The number of samples is {total_length}")
-
+def get_dataloader(h5_path, batch_size, num_workers=8):
+    dataset = H5GenomeDataset(h5_path)
+    print(f"The number of samples is {len(dataset)}")
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     return dataloader
+
+

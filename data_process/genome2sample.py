@@ -168,7 +168,7 @@ def split_sequence(sequence, category_annotation_forward_rec, category_annotatio
     length = len(sequence)
     sequence_forward = sequence
     windows = []
-    windows_intergenic = []
+    windows_with_intergenic = []
 
     for start in range(0, length, window_size):
         end = start + window_size
@@ -208,23 +208,57 @@ def split_sequence(sequence, category_annotation_forward_rec, category_annotatio
 
         if not np.all(mask_forward_rec[start:end] == 0):
             if np.all(category_annotation_forward_rec[start:end] == 0):
-                windows_intergenic.append((window_seq_forward, window_ann_forward, window_weights_forward))
+                windows_with_intergenic.append((window_seq_forward, window_ann_forward, window_weights_forward))
             else:
+                windows_with_intergenic.append((window_seq_forward, window_ann_forward, window_weights_forward))
                 windows.append((window_seq_forward, window_ann_forward, window_weights_forward))
 
         if not np.all(mask_reverse_rec[start:end] == 0):
             if np.all(category_annotation_reverse_rec[start:end] == 0):
-                windows_intergenic.append((window_seq_reverse, window_ann_reverse, window_weights_reverse))
+                windows_with_intergenic.append((window_seq_reverse, window_ann_reverse, window_weights_reverse))
             else:
+                windows_with_intergenic.append((window_seq_reverse, window_ann_reverse, window_weights_reverse))
                 windows.append((window_seq_reverse, window_ann_reverse, window_weights_reverse))
 
-    return windows, windows_intergenic
+        # if not np.all(mask_forward_rec[start:end] == 0):
+        #     if np.all(category_annotation_forward_rec[start:end] == 0):
+        #         windows_intergenic.append((window_seq_forward, window_ann_forward, window_weights_forward))
+        #     else:
+        #         windows.append((window_seq_forward, window_ann_forward, window_weights_forward))
+        #
+        # if not np.all(mask_reverse_rec[start:end] == 0):
+        #     if np.all(category_annotation_reverse_rec[start:end] == 0):
+        #         windows_intergenic.append((window_seq_reverse, window_ann_reverse, window_weights_reverse))
+        #     else:
+        #         windows.append((window_seq_reverse, window_ann_reverse, window_weights_reverse))
+
+    return windows, windows_with_intergenic
+
+
+def write_h5(output_file, split_data):
+    with h5py.File(output_file, "a") as f:
+        for chromosome, windows in split_data.items():
+            if chromosome in f:
+                raise Exception(f"Seq-ID {chromosome} already exists, please check input data.")
+            grp = f.create_group(str(chromosome))
+            dt = h5py.special_dtype(vlen=str)
+            sequences = [w[0] for w in windows]
+            annotations = np.array([w[1] for w in windows])
+            masks = np.array([w[2] for w in windows])
+
+            grp.create_dataset("sequences", data=sequences, dtype=dt, chunks=True, compression="gzip")
+            grp.create_dataset("annotations", data=annotations, chunks=True, compression="gzip")
+            grp.create_dataset("masks", data=masks, chunks=True, compression="gzip")
+            # grp.create_dataset("sequences", data=sequences, dtype=dt)
+            # grp.create_dataset("annotations", data=annotations)
+            # grp.create_dataset("masks", data=masks)
 
 
 def generate_h5_file(genome, annotation, output_file, threads, window_size, flank_length, keep_intergenic_sample):
     path_name = os.path.dirname(output_file)
     if path_name:
         os.makedirs(path_name, exist_ok=True)
+
     seq_information_total = []
     seq_information_total_exceed_max = []
     max_overflow_length = 300000000
@@ -251,32 +285,12 @@ def generate_h5_file(genome, annotation, output_file, threads, window_size, flan
             results.append(result)
 
     split_genome = {}
-    split_genome_intergenic = {}
+    split_genome_with_intergenic = {}
     for result in results:
         seq_id, windows, windows_intergenic = result
         split_genome[seq_id] = windows
-        split_genome_intergenic[seq_id] = windows_intergenic
+        split_genome_with_intergenic[seq_id] = windows_intergenic
 
-    with h5py.File(f'{output_file}.h5', "w") as f:
-        for chromosome, windows in split_genome.items():
-            grp = f.create_group(str(chromosome))
-            sequences = [window[0] for window in windows]
-            annotations = np.array([window[1] for window in windows])
-            masks = np.array([window[2] for window in windows])
+    write_h5(f"{output_file}.h5", split_genome)
+    write_h5(f"{output_file}_with_intergenic.h5", split_genome_with_intergenic)
 
-            dt = h5py.special_dtype(vlen=str)
-            grp.create_dataset("sequences", data=sequences, dtype=dt)
-            grp.create_dataset("annotations", data=annotations)
-            grp.create_dataset("masks", data=masks)
-
-    with h5py.File(f'{output_file}_intergenic.h5', "w") as f:
-        for chromosome, windows in split_genome_intergenic.items():
-            grp = f.create_group(str(chromosome))
-            sequences = [window[0] for window in windows]
-            annotations = np.array([window[1] for window in windows])
-            masks = np.array([window[2] for window in windows])
-
-            dt = h5py.special_dtype(vlen=str)
-            grp.create_dataset("sequences", data=sequences, dtype=dt)
-            grp.create_dataset("annotations", data=annotations)
-            grp.create_dataset("masks", data=masks)

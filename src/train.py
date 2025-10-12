@@ -64,7 +64,7 @@ def training_loop(model, train_dataloader, val_dataloader, optimizer, device, sc
         gc.collect()
 
 
-def model_train(train_species_list, val_species_list, model_save_path, h5_path, learning_rate, epoch, batch_size, patience, warmup_steps,
+def model_train(model_save_path, h5_path, learning_rate, epoch, batch_size, patience, warmup_steps,
                 window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes=5, top_k=2)
@@ -91,8 +91,8 @@ def model_train(train_species_list, val_species_list, model_save_path, h5_path, 
     ---------------------------------Train phase 1---------------------------------
     Only train model on gene region.
     '''
-    train_dataloader = get_dataloader(h5_path, train_species_list, batch_size, num_workers=4, training_phase=1)
-    val_dataloader = get_dataloader(h5_path, val_species_list, batch_size, num_workers=4, training_phase=1)
+    train_dataloader = get_dataloader(f'{h5_path}/train.h5', batch_size, num_workers=8)
+    val_dataloader = get_dataloader(f'{h5_path}/val.h5', batch_size, num_workers=8)
     training_loop(model, train_dataloader, val_dataloader, optimizer, device, scheduler, num_branches, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2,
                   loss_fn_dice_intron, coefficient, early_stopping, epoch=15, training_phase=1)
     del train_dataloader, val_dataloader
@@ -101,7 +101,7 @@ def model_train(train_species_list, val_species_list, model_save_path, h5_path, 
     ---------------------------------Train phase 2---------------------------------
     Train model on all region.
     '''
-    train_dataloader = get_dataloader(h5_path, train_species_list, batch_size, num_workers=0, training_phase=2)
-    val_dataloader = get_dataloader(h5_path, val_species_list, batch_size, num_workers=0, training_phase=2)
+    train_dataloader = get_dataloader(f'{h5_path}/train_with_intergenic.h5', batch_size, num_workers=8)
+    val_dataloader = get_dataloader(f'{h5_path}/val_with_intergenic.h5', batch_size, num_workers=8)
     training_loop(model, train_dataloader, val_dataloader, optimizer, device, scheduler, num_branches, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2,
                   loss_fn_dice_intron, coefficient, early_stopping, epoch, training_phase=2)
