@@ -30,9 +30,6 @@ def main():
                         help='The number of simulated evolutionary branches. Note: this parameter should be the same with it in gene decoding.')
     args = parser.parse_args()
 
-    with open(args.fine_tune_species_list, 'r') as file:
-        fine_tune_species_list = [line.strip() for line in file]
-
     output_dir = os.path.dirname(args.model_save_path)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
