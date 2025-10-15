@@ -56,9 +56,12 @@ def main():
     tmp_folder = tempfile.mkdtemp(prefix="tmp_", dir="./tmp")
     model_prediction_path = os.path.join(tmp_folder, "model_prediction.h5")
 
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    prediction_script = os.path.join(BASE_DIR, "prediction.py")
+    decoding_script = os.path.join(BASE_DIR, "decoding.py")
     start_time = time.time()
     cmd = (
-        f"python prediction.py "
+        f"python {prediction_script} "
         f"--genome {args.genome} "
         f"--model_path {args.model_path} "
         f"--genome_size_threshold {args.genome_size_threshold} "
@@ -77,7 +80,7 @@ def main():
     os.system(cmd)
 
     cmd = (
-        f"python decoding.py "
+        f"python {decoding_script} "
         f"--genome {args.genome} "
         f"--model_prediction_path {model_prediction_path} "
         f"--genome_size_threshold {args.genome_size_threshold} "

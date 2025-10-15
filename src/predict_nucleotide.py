@@ -108,6 +108,7 @@ def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers
     model = model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes, top_k=2)
     model = model_load_weights(model_path, model, device)
     model.eval()
+    chunk_num = 1
 
     file_saving_time = 0
 
@@ -148,6 +149,8 @@ def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers
         offset.append(count)
 
         if cumulative_size > genome_size_threshold:
+            print(f'---------------------------------------Prediction on chunk {chunk_num}---------------------------------------')
+            chunk_num += 1
             genome_predictions = pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
                                            seq_id_chunk, seq_length_chunk, offset, window_size)
             runtime = save_prediction_result(genome_predictions, prediction_path)
@@ -162,6 +165,8 @@ def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers
             seq_id_chunk = []
             seq_length_chunk = []
     if seq_id_chunk:
+        print(f'---------------------------------------Prediction on chunk {chunk_num}---------------------------------------')
+        chunk_num += 1
         genome_predictions = pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
                                        seq_id_chunk, seq_length_chunk, offset, window_size)
         runtime = save_prediction_result(genome_predictions, prediction_path)
