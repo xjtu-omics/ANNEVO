@@ -25,7 +25,14 @@ We recommend using the conda virtual environment to install ANNEVO (Platform: Li
 # Get the source code
 git clone https://github.com/xjtu-omics/ANNEVO.git
 cd ANNEVO
-
+```
+If your CUDA version is higher than 12.1, you can directly install the environment using:
+```
+conda env create -f ANNEVO.yml -n your_env_name
+```
+Alternatively, you can follow the steps below to install the environment manually.
+This is especially recommended for users with lower CUDA versions, as you may need to manually adjust the PyTorch version and installation source.
+```
 # Create a conda environment for ANNEVO
 conda create -n ANNEVO python=3.10
 
