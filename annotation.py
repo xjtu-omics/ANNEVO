@@ -2,6 +2,7 @@ import argparse
 import time
 import os
 import tempfile
+import shutil
 
 
 def main():
@@ -98,6 +99,8 @@ def main():
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"The gene annotation took {elapsed_time:.1f} seconds")
+    if os.path.exists(tmp_folder):
+        shutil.rmtree(tmp_folder)
 
 
 if __name__ == '__main__':
