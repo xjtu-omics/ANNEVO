@@ -57,6 +57,7 @@ python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda
 ```
 
 # Usage
+Generally, ANNEVO can achieve good annotation performance as long as the training set contains species from the same class level, even if there are only one or two. You can refer to `train_class.txt` to see which classes are included in the training set.
 ## One-step Execution
 ```bash
 python annotation.py --genome path_to_genome --model_path path_to_model --output path_to_gff --threads 48

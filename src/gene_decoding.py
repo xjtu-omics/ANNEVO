@@ -209,7 +209,7 @@ def write_result(file, num, seq_id, result, length, strand):
         gene_start, gene_end = CDS_list[0][0], CDS_list[-1][1]
         gene_start, gene_end = gene_start + 1, gene_end + 1  # 0-based to 1-based
         file.write(f'{seq_id}\tANNEVO\tgene\t{gene_start}\t{gene_end}\t.\t+\t.\tID={seq_id}-g{num + 1}\n')
-        file.write(f'{seq_id}\tANNEVO\ttranscript\t{gene_start}\t{gene_end}\t.\t+\t.\tID={seq_id}-g{num + 1}.t1;Parent={seq_id}-g{num + 1}\n')
+        file.write(f'{seq_id}\tANNEVO\tmRNA\t{gene_start}\t{gene_end}\t.\t+\t.\tID={seq_id}-g{num + 1}.t1;Parent={seq_id}-g{num + 1}\n')
         for i, exon in enumerate(CDS_list):
             start, end = exon
             type_start, type_end = start + 1, end + 1
@@ -227,7 +227,7 @@ def write_result(file, num, seq_id, result, length, strand):
         gene_start = length - (CDS_list[-1][1] + 1) + 1
         gene_end = length - (CDS_list[0][0] + 1) + 1
         file.write(f'{seq_id}\tANNEVO\tgene\t{gene_start}\t{gene_end}\t.\t-\t.\tID={seq_id}-g{num + 1}\n')
-        file.write(f'{seq_id}\tANNEVO\ttranscript\t{gene_start}\t{gene_end}\t.\t-\t.\tID={seq_id}-g{num + 1}.t1;Parent={seq_id}-g{num + 1}\n')
+        file.write(f'{seq_id}\tANNEVO\tmRNA\t{gene_start}\t{gene_end}\t.\t-\t.\tID={seq_id}-g{num + 1}.t1;Parent={seq_id}-g{num + 1}\n')
         CDS_num = 0
         for i, exon in enumerate(CDS_list):
             start, end = exon
