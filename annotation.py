@@ -16,6 +16,8 @@ def main():
     parser.add_argument('--genome_size_threshold', type=int, default=100 * 1024 * 1024,
                         help='Threshold for the total genome size per operation. '
                              'By default, whenever the cumulative size of contigs exceeds this threshold (e.g., 100 Mb), a prediction or decoding operation will be performed.')
+    parser.add_argument("--tmp_path", help="Path to save temporary intermediate files")
+
     parser.add_argument('--batch_size', type=int, default=32, help='The number of samples in a batch.')
     parser.add_argument('--num_workers', type=int, default=8, help='The number of CPU cores to load data in parallel')
     parser.add_argument('--window_size', type=int, default=30720,
@@ -53,8 +55,12 @@ def main():
     output_dir = os.path.dirname(args.output)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    os.makedirs("tmp", exist_ok=True)
-    tmp_folder = tempfile.mkdtemp(prefix="tmp_", dir="./tmp")
+
+    if args.tmp_path:
+        tmp_folder = tempfile.mkdtemp(prefix="tmp_", dir=f"{args.tmp_path}")
+    else:
+        os.makedirs("tmp", exist_ok=True)
+        tmp_folder = tempfile.mkdtemp(prefix="tmp_", dir="./tmp")
     model_prediction_path = os.path.join(tmp_folder, "model_prediction.h5")
 
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
