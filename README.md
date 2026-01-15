@@ -1,14 +1,28 @@
-# ANNEVO (v2.2)
+# ANNEVO (v2.2.1)
 ## Recent Updates
-Version 2.2 focuses on optimizing CPU memory usage and file management, resulting in a significant reduction in memory requirements.
-Due to minor changes in internal code logic, some command-line usage has also been updated. Please refer to the section `Usage` for details.
-1. Peak memory usage during ANNEVO runs has been reduced by more than 60%. For example, when running on the human genome with default settings (48 threads), peak memory dropped from 131GB to 50 GB. When memory is limited, using fewer parallel threads will further reduce the requirements.
-2. Memory requirements for retraining ANNEVO have been reduced by over 10×. ANNEVO now reads data using index-based loading, which drastically reduces memory usage.
-For example, retraining the mammalian model now requires only ~12 GB of memory, down from ~500 GB previously.  
-3. Now the genome is divided into chunks based on contig size rather than a fixed number of chunks, which eliminates the need to manually adjust parameters for large genomes.
+We explored a new data processing approach and training strategy while keeping the original model architecture and decoding algorithm unchanged. 
+Preliminary evaluations on several model species indicate a further improvement in annotation performance. 
+We are releasing two models (Mammalia2 and Insecta) ahead of schedule to gather broader user feedback and suggestions.  
 
-**These changes do not affect the final results and even improve runtime performance (rough estimate, 10%–30%). For example, Arabidopsis thaliana (2.5 min now vs. 3.4 min previously) and human genome (1.3 hours now vs. 1.4 hours previously). If you notice any unexpected behavior, please don’t hesitate to let us know — we sincerely appreciate your feedback.**
+| Species                 |                Model                 | BUSCO_odb10 | NT(CDS)-F1 | NT(intron)-F1 |
+|:------------------------|:------------------------------------:|------------:|-----------:|--------------:|
+| Homo_sapiens            |           ANNEVO_Mammalia            |        95.7 |       91.6 |          86.4 |
+| Homo_sapiens            | ANNEVO_Mammalia2 (new trained model) |        97.5 |       92.9 |          88.9 |
+| **————————**            |             **————————**             |    **————** |   **————** |      **————** |
+| Rattus_norvegicus       |           ANNEVO_Mammalia            |        95.7 |       92.7 |          87.1 |
+| Rattus_norvegicus       | ANNEVO_Mammalia2 (new trained model) |        97.1 |       93.4 |          88.4 |
+| **————————**            |             **————————**             |    **————** |   **————** |      **————** |
+| Drosophila_melanogaster |         ANNEVO_Invertebrate          |        98.6 |       96.6 |          86.5 |
+| Drosophila_melanogaster |  ANNEVO_Insecta (new trained model)  |        98.7 |       96.7 |          89.8 |
+| **————————**            |             **————————**             |    **————** |   **————** |      **————** |
+| Bombyx_mori             |         ANNEVO_Invertebrate          |        98.0 |       89.7 |          83.8 |
+| Bombyx_mori             |  ANNEVO_Insecta (new trained model)  |        98.7 |       89.0 |          87.6 |
 
+## Update history
+#### 2026-01 (v2.2.1): Released two new models for Insecta and Mammalia, trained with the new data processing and training pipeline.
+#### 2025-10 (v2.2): Memory usage optimization.  
+#### 2025-07 (v2.1): New model architecture and training procedure.
+#### 2025-01 (v1.0): Ab initio gene annotation with ANNEVO.
 ## Overview
 ANNEVO is a deep learning-based ab initio gene annotation method for understanding genome function. ANNEVO is capable of modeling distal sequence information and joint evolutionary relationships across diverse species directly from genomes.  
 

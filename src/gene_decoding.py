@@ -381,7 +381,7 @@ def gene_structure_decoding(genome, model_prediction_path, genome_size_threshold
     global _global_genome_seq
     _global_genome_seq = genome_seq
     with open(output, 'w') as file:
-        file.write('# This output was generated with ANNEVO (v2.2).\n')
+        file.write('# This output was generated with ANNEVO.\n')
         file.write('# ANNEVO is an ab initio gene annotation tool written by YeLab.\n')
     seq_num = 1
     file_loading_time = 0
