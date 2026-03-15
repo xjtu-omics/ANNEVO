@@ -1,24 +1,21 @@
-# ANNEVO (v2.2.1)
+# ANNEVO (v2.2.2)
 ## Recent Updates
-We explored a new data processing approach and training strategy while keeping the original model architecture and decoding algorithm unchanged. 
-Preliminary evaluations on several model species indicate a further improvement in annotation performance. 
-We are releasing two models (Mammalia2 and Insecta) ahead of schedule to gather broader user feedback and suggestions.  
+We optimized the search logic for candidate intervals during decoding, improving performance with less than a 1% impact on runtime.  
+Note: We removed the older models from the current release to avoid users inadvertently using suboptimal versions, while keeping them available through previous releases.
 
-| Species                 |                Model                 | BUSCO_odb10 | NT(CDS)-F1 | NT(intron)-F1 |
-|:------------------------|:------------------------------------:|------------:|-----------:|--------------:|
-| Homo_sapiens            |           ANNEVO_Mammalia            |        95.7 |       91.6 |          86.4 |
-| Homo_sapiens            | ANNEVO_Mammalia2 (new trained model) |        97.5 |       92.9 |          88.9 |
-| **————————**            |             **————————**             |    **————** |   **————** |      **————** |
-| Rattus_norvegicus       |           ANNEVO_Mammalia            |        95.7 |       92.7 |          87.1 |
-| Rattus_norvegicus       | ANNEVO_Mammalia2 (new trained model) |        97.1 |       93.4 |          88.4 |
-| **————————**            |             **————————**             |    **————** |   **————** |      **————** |
-| Drosophila_melanogaster |         ANNEVO_Invertebrate          |        98.6 |       96.6 |          86.5 |
-| Drosophila_melanogaster |  ANNEVO_Insecta (new trained model)  |        98.7 |       96.7 |          89.8 |
-| **————————**            |             **————————**             |    **————** |   **————** |      **————** |
-| Bombyx_mori             |         ANNEVO_Invertebrate          |        98.0 |       89.7 |          83.8 |
-| Bombyx_mori             |  ANNEVO_Insecta (new trained model)  |        98.7 |       89.0 |          87.6 |
+
+| Species                 |            Version            | BUSCO_odb10 | NT(CDS)-F1 | NT(intron)-F1 |
+|:------------------------|:-----------------------------:|------------:|-----------:|--------------:|
+| Homo_sapiens            | v2.0 (used in the manuscript) |        95.7 |       91.6 |          86.4 |
+| Homo_sapiens            |            v2.2.1             |        97.5 |       92.9 |          88.9 |
+| Homo_sapiens            |            v2.2.2             |        97.9 |       93.1 |          88.9 |
+| **————————**            |         **————————**          |    **————** |   **————** |      **————** |
+| Drosophila_melanogaster | v2.0 (used in the manuscript) |        98.6 |       96.6 |          86.5 |
+| Drosophila_melanogaster |            v2.2.1             |        98.7 |       96.7 |          89.8 |
+| Drosophila_melanogaster |            v2.2.2             |        99.2 |       97.0 |          89.9 |
 
 ## Update history
+#### 2026-03 (v2.2.2): Optimized the search logic for candidate intervals during decoding.
 #### 2026-01 (v2.2.1): Released two new models for Insecta and Mammalia, trained with the new data processing and training pipeline.
 #### 2025-10 (v2.2): Memory usage optimization.  
 #### 2025-07 (v2.1): New model architecture and training procedure.

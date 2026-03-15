@@ -305,6 +305,31 @@ def decode_and_write(potential_gene_list, chromosome_length, model_prediction_pa
     return seq_num
 
 
+def expand_and_merge_regions(regions, seq_length, buffer_size=100):
+    if not regions:
+        return []
+
+    expanded = []
+    for start, end in regions:
+        s = max(0, int(start) - buffer_size)
+        e = min(int(seq_length), int(end) + buffer_size)
+        if s < e:
+            expanded.append((s, e))
+
+    if not expanded:
+        return []
+
+    expanded.sort(key=lambda x: x[0])
+    merged = [expanded[0]]
+    for s, e in expanded[1:]:
+        last_s, last_e = merged[-1]
+        if s <= last_e:
+            merged[-1] = (last_s, max(last_e, e))
+        else:
+            merged.append((s, e))
+    return merged
+
+
 def get_gene_region(genome_predictions, genome_seq, average_threshold, max_threshold):
     potential_gene_list = []
     chromosome_length = {}
@@ -322,8 +347,10 @@ def get_gene_region(genome_predictions, genome_seq, average_threshold, max_thres
         The position tuple in the reverse chains of gff is (length - b + 1, length - (a + 1) + 1) = (length - b + 1, length - a)
         The position tuple in the reverse array is (length - b, length - a) 
         '''
-
         potential_gene_chromosome_forward = detect_gene_location(predictions_forward, length, average_threshold, max_threshold)
+        potential_gene_chromosome_forward = expand_and_merge_regions(
+            potential_gene_chromosome_forward, length, buffer_size=100
+        )
         if not potential_gene_chromosome_forward:
             potential_gene_list.append(
                 (None, None, chromosome, 1, None, None)
@@ -336,6 +363,9 @@ def get_gene_region(genome_predictions, genome_seq, average_threshold, max_thres
                      None)
                 )
         potential_gene_chromosome_reverse = detect_gene_location(predictions_reverse, length, average_threshold, max_threshold)
+        potential_gene_chromosome_reverse = expand_and_merge_regions(
+            potential_gene_chromosome_reverse, length, buffer_size=100
+        )
         if not potential_gene_chromosome_reverse:
             potential_gene_list.append(
                 (None, None, chromosome, -1, None, None)
@@ -348,30 +378,6 @@ def get_gene_region(genome_predictions, genome_seq, average_threshold, max_thres
                      None)
                 )
 
-        # potential_gene_chromosome_forward = detect_gene_location(predictions_forward, length, average_threshold, max_threshold)
-        # if not potential_gene_chromosome_forward:
-        #     potential_gene_list.append(
-        #         (None, None, chromosome, 1, None, None)
-        #     )
-        # else:
-        #     for location_start, location_end in potential_gene_chromosome_forward:
-        #         potential_gene_list.append(
-        #             (location_start, location_end, chromosome, 1,
-        #              predictions_forward[location_start:location_end].copy(),
-        #              sequence_forward[location_start:location_end])
-        #         )
-        # potential_gene_chromosome_reverse = detect_gene_location(predictions_reverse, length, average_threshold, max_threshold)
-        # if not potential_gene_chromosome_reverse:
-        #     potential_gene_list.append(
-        #         (None, None, chromosome, -1, None, None)
-        #     )
-        # else:
-        #     for location_start, location_end in potential_gene_chromosome_reverse:
-        #         potential_gene_list.append(
-        #             (location_start, location_end, chromosome, -1,
-        #              predictions_reverse[location_start:location_end].copy(),
-        #              sequence_reverse[location_start:location_end])
-        #         )
     return chromosome_length, potential_gene_list
 
 
@@ -381,8 +387,9 @@ def gene_structure_decoding(genome, model_prediction_path, genome_size_threshold
     global _global_genome_seq
     _global_genome_seq = genome_seq
     with open(output, 'w') as file:
-        file.write('# This output was generated with ANNEVO.\n')
+        file.write('# This output was generated with ANNEVO v2.2.2.\n')
         file.write('# ANNEVO is an ab initio gene annotation tool written by YeLab.\n')
+        file.write('# Citation: Zhang, P., Xu, T., Wang, S. et al. Highly accurate ab initio gene annotation with ANNEVO. Nat Methods (2026). https://doi.org/10.1038/s41592-026-03036-7\n')
     seq_num = 1
     file_loading_time = 0
     cumulative_size = 0
