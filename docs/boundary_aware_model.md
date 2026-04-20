@@ -17,7 +17,7 @@ python decoding.py --genome path_to_genome --model_prediction_path path_to_save_
 # Evaluation and other notes
 We have released a new plant model that uses a similar boundary-aware strategy to define label categories (Ref 1). However, the early stopping criterion, loss functions, model architecture, and decoding procedure remain the same as described in the ANNEVO (Ref 2). In particular, ANNEVO decoding is still driven entirely by the model probabilities, without any explicit modeling of length distributions. In addition, the data preprocessing pipeline was updated using a new strategy, which has not yet been published.  
 
-Evaluation was performed using gffcompare (Ref 3). For base-level and exon-level evaluation, the longest transcript of each reference annotation was used as the gold standard. For locus-level evaluation, the reference annotation containing all transcripts was used as the gold standard. We additionally disabled automatic exon merging and enabled strict matching. The command is shown below:
+To enable a fair comparison with other methods, ANNEVO was deliberately trained with all model organisms excluded, such as Arabidopsis thaliana and rice. Evaluation was performed using gffcompare (Ref 3). For base-level and exon-level evaluation, the longest transcript of each reference annotation was used as the gold standard. For locus-level evaluation, the reference annotation containing all transcripts was used as the gold standard. We additionally disabled automatic exon merging and enabled strict matching. The command is shown below:
 ```
 gffcompare -r ${path_to_ref} ${path_to_pred} --no-exon-merge --strict-match
 ```
