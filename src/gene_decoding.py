@@ -1,15 +1,18 @@
 import numpy as np
 from Bio import SeqIO
 import h5py
-from src.predict_nucleotide import reverse_complement
+from src.predict_nucleotide import rev_complement
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import defaultdict
 import pandas as pd
-from src.HMM import viterbi_decoding, define_state
+from src import HMM, HMM2
 import time
+import re
+from tqdm import tqdm
+from itertools import islice
 
 
-def detect_gene_location(base_predictions, seq_length, min_threshold, max_threshold):
+def detect_gene_location(base_predictions, seq_length, min_threshold, max_threshold, min_cds_length):
     """
     Detect the range of potential genes based on model's predictions.
     """
@@ -33,54 +36,90 @@ def detect_gene_location(base_predictions, seq_length, min_threshold, max_thresh
             if in_genic_region:
                 potential_genic_range = genic_proba[genic_region_start:end]
                 count_above_threshold = np.sum(potential_genic_range > max_threshold)
-                if count_above_threshold >= 1:
+                if count_above_threshold >= min_cds_length:
                     genic_region.append((genic_region_start, end))
                 in_genic_region = False
             genic_region_start = start + step
     if in_genic_region:
-        genic_region.append((genic_region_start, seq_length))
+        potential_genic_range = genic_proba[genic_region_start:seq_length]
+        count_above_threshold = np.sum(potential_genic_range > max_threshold)
+        if count_above_threshold >= min_cds_length:
+            genic_region.append((genic_region_start, seq_length))
     return genic_region
 
 
-def calculate_gene_score(gene_structure, predictions, CDS_list, intron_list, sequence, CDS_phase0, CDS_phase2, CDS_phase1):
+def calculate_gene_score(gene_structure, predictions, CDS_list, CDS_phase0, CDS_phase2, CDS_phase1):
     CDS_score = 0
     CDS_num = 0
 
     CDS_score_list = []
 
-    sequence = sequence.upper()
     for CDS_start, CDS_end in CDS_list:
         CDS_score_single_sum = 0
         CDS_num_single = CDS_end - CDS_start + 1
-        coefficient = 0
         for i in range(CDS_start, CDS_end + 1):
             if gene_structure[i] in CDS_phase0:
-                if sequence[i].islower():
-                    CDS_score += predictions[i, 1] * coefficient
-                    CDS_score_single_sum += predictions[i, 1] * coefficient
-                else:
-                    CDS_score += predictions[i, 1]
-                    CDS_score_single_sum += predictions[i, 1]
+                CDS_score += predictions[i, 1]
+                CDS_score_single_sum += predictions[i, 1]
                 CDS_num += 1
             elif gene_structure[i] in CDS_phase2:
-                if sequence[i].islower():
-                    CDS_score += predictions[i, 3] * coefficient
-                    CDS_score_single_sum += predictions[i, 3] * coefficient
-                else:
-                    CDS_score += predictions[i, 3]
-                    CDS_score_single_sum += predictions[i, 3]
+                CDS_score += predictions[i, 3]
+                CDS_score_single_sum += predictions[i, 3]
                 CDS_num += 1
             elif gene_structure[i] in CDS_phase1:
-                if sequence[i].islower():
-                    CDS_score += predictions[i, 2] * coefficient
-                    CDS_score_single_sum += predictions[i, 2] * coefficient
-                else:
-                    CDS_score += predictions[i, 2]
-                    CDS_score_single_sum += predictions[i, 2]
+                CDS_score += predictions[i, 2]
+                CDS_score_single_sum += predictions[i, 2]
                 CDS_num += 1
         CDS_score_single = CDS_score_single_sum / CDS_num_single
         CDS_score_list.append(CDS_score_single)
     CDS_score = CDS_score / CDS_num if CDS_num != 0 else 0
+    return CDS_score, CDS_score_list
+
+
+def calculate_gene_score2(gene_structure, predictions, CDS_list, columns_dict):
+    state_to_prediction_column = {}
+    column_to_prediction = {
+        'INTERGENIC': 0,
+        'CODING_EXON_0': 1,
+        'CODING_EXON_1': 3,
+        'CODING_EXON_2': 2,
+        'INTRON_0': 4,
+        'INTRON_1': 6,
+        'INTRON_2': 5,
+        'DSS_0': 7,
+        'DSS_1': 9,
+        'DSS_2': 8,
+        'ASS_0': 10,
+        'ASS_1': 12,
+        'ASS_2': 11,
+        'START': 13,
+        'END': 14,
+    }
+    for column_name, prediction_column in column_to_prediction.items():
+        for state in columns_dict[column_name]:
+            state_to_prediction_column[state] = prediction_column
+
+    CDS_score_list = []
+    gene_cds_score_sum = 0
+    gene_cds_base_num = 0
+
+    for CDS_start, CDS_end in CDS_list:
+        cds_score_sum = 0
+        cds_base_num = 0
+        for i in range(CDS_start, CDS_end + 1):
+            state = gene_structure[i]
+            if state not in state_to_prediction_column:
+                continue
+            base_score = predictions[i, state_to_prediction_column[state]]
+
+            cds_score_sum += base_score
+            cds_base_num += 1
+            gene_cds_score_sum += base_score
+            gene_cds_base_num += 1
+
+        CDS_score_list.append(cds_score_sum / cds_base_num)
+
+    CDS_score = gene_cds_score_sum / gene_cds_base_num
     return CDS_score, CDS_score_list
 
 
@@ -129,82 +168,186 @@ def parse_ranges(lst, targets):
     return all_sublist_ranges
 
 
-def decode_gene_structure(location_start, predictions, sequence, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
-
+def decode_gene_structure(location_start, predictions, sequence, min_cds_length, min_cds_score, min_intron_length):
     intron_group = ['CDS0', 'CDS0_T', 'CDS1', 'CDS1_TA', 'CDS1_TG', 'CDS2']
+    epsilon = 1e-3
+    predictions[predictions < epsilon] = epsilon
 
-    states_to_num, num_states, phase_0_columns, phase_1_columns, phase_2_columns, intron_columns = define_state(intron_group, min_intron_length, at_ac_splicing)
-    gene_structure_all_states = viterbi_decoding(predictions, sequence, states_to_num, num_states, phase_0_columns, phase_1_columns, phase_2_columns,
-                                                 intron_columns, intron_group, min_intron_length, at_ac_splicing)
-    CDS_columns = phase_0_columns + phase_2_columns + phase_1_columns
-    gene_structure_three_states = [
-        0 if x in {states_to_num['intergenic']} else
-        1 if x in CDS_columns else
-        2 if x in intron_columns else x
-        for x in gene_structure_all_states
-    ]
-    targets = [1, 2]
-    gene_list = parse_ranges(gene_structure_three_states, targets)
+    def run_decoding(current_min_intron_length):
+        states_to_num, num_states, phase_0_columns, phase_1_columns, phase_2_columns, intron_columns = HMM.define_state(
+            intron_group, current_min_intron_length
+        )
+        gene_structure_all_states = HMM.viterbi_decoding(
+            predictions,
+            sequence,
+            states_to_num,
+            num_states,
+            phase_0_columns,
+            phase_1_columns,
+            phase_2_columns,
+            intron_columns,
+            intron_group,
+            current_min_intron_length
+        )
+        CDS_columns = phase_0_columns + phase_2_columns + phase_1_columns
+        gene_structure_three_states = [
+            0 if x in {states_to_num['intergenic']} else
+            1 if x in CDS_columns else
+            2 if x in intron_columns else x
+            for x in gene_structure_all_states
+        ]
+        gene_list = parse_ranges(gene_structure_three_states, [1, 2])
+        return (
+            gene_structure_all_states,
+            phase_0_columns,
+            phase_1_columns,
+            phase_2_columns,
+            intron_columns,
+            gene_list
+        )
+
+    gene_structure_all_states, phase_0_columns, phase_1_columns, phase_2_columns, intron_columns, gene_list = (
+        run_decoding(current_min_intron_length=1)
+    )
+
+    if min_intron_length > 1:
+        has_short_intron = False
+        for gene in gene_list:
+            for intron_start, intron_end in gene['intron']:
+                intron_length = intron_end - intron_start + 1
+                if intron_length < min_intron_length:
+                    has_short_intron = True
+                    break
+            if has_short_intron:
+                break
+
+        if has_short_intron:
+            gene_structure_all_states, phase_0_columns, phase_1_columns, phase_2_columns, intron_columns, gene_list = (
+                run_decoding(current_min_intron_length=min_intron_length)
+            )
+
     filtered_gene_list = []
     for gene in gene_list:
         CDS_list_init = gene['CDS']
-        intron_list_init = gene['intron']
 
         if not CDS_list_init:
             continue
         CDS_count = sum((CDS[1] - CDS[0] + 1) for CDS in CDS_list_init)
         if CDS_count < min_cds_length:
             continue
-        CDS_score, CDS_score_list = calculate_gene_score(gene_structure_all_states, predictions, CDS_list_init,
-                                                         intron_list_init, sequence, phase_0_columns, phase_2_columns, phase_1_columns)
+        CDS_score, CDS_score_list = calculate_gene_score(
+            gene_structure_all_states,
+            predictions,
+            CDS_list_init,
+            phase_0_columns,
+            phase_2_columns,
+            phase_1_columns
+        )
         if CDS_score < min_cds_score:
             continue
 
         CDS_list = [(start + location_start, end + location_start) for start, end in CDS_list_init]
-        intron_list = [(start + location_start, end + location_start) for start, end in intron_list_init]
         first_CDS_position = CDS_list[0][0]
-        gene_length = CDS_list[-1][-1] - first_CDS_position + 1
-        if gene_length < 200:
+        gene_attribute = (CDS_list, CDS_score, CDS_score_list, first_CDS_position)
+        filtered_gene_list.append(gene_attribute)
+    return filtered_gene_list
+
+def decode_gene_structure2(location_start, predictions, sequence, min_cds_length, min_cds_score, min_intron_length):
+    def smooth_phase_group(column_indices, keep_weight=0.8):
+        phase_probs = predictions[:, column_indices]
+        phase_mean = phase_probs.sum(axis=1, keepdims=True) / float(len(column_indices))
+        predictions[:, column_indices] = phase_probs * keep_weight + phase_mean * (1.0 - keep_weight)
+
+    def run_decoding(current_min_intron_length):
+        decode_start_time = time.time()
+        states_to_num, num_states = HMM2.define_state(min_intron_length=current_min_intron_length)
+        columns_dict = HMM2.define_columns(states_to_num)
+        gene_structure_all_states = HMM2.viterbi_decoding(
+            predictions,
+            sequence,
+            states_to_num,
+            num_states,
+            columns_dict,
+            min_intron_length=current_min_intron_length
+        )
+        phase_0_columns = columns_dict['CODING_EXON_0'] + columns_dict['ASS_0'] + columns_dict['DSS_0']
+        phase_1_columns = columns_dict['CODING_EXON_1'] + columns_dict['ASS_1'] + columns_dict['DSS_1']
+        phase_2_columns = columns_dict['CODING_EXON_2'] + columns_dict['ASS_2'] + columns_dict['DSS_2']
+        CDS_columns = set(
+            phase_0_columns +
+            phase_1_columns +
+            phase_2_columns +
+            columns_dict['START'] +
+            columns_dict['END']
+        )
+        intron_columns = set(
+            columns_dict['INTRON_0'] +
+            columns_dict['INTRON_1'] +
+            columns_dict['INTRON_2']
+        )
+        gene_structure_three_states = [
+            0 if x in {states_to_num['intergenic']} else
+            1 if x in CDS_columns else
+            2 if x in intron_columns else x
+            for x in gene_structure_all_states
+        ]
+        # print(gene_structure_three_states)
+        gene_list = parse_ranges(gene_structure_three_states, [1, 2])
+        decode_runtime = time.time() - decode_start_time
+        return gene_structure_all_states, columns_dict, gene_list, decode_runtime
+
+    # smooth_phase_group([1, 3, 2])
+    # smooth_phase_group([7, 9, 8])
+    # smooth_phase_group([10, 12, 11])
+    # smooth_phase_group([4, 6, 5])
+
+    epsilon = 1e-3
+    predictions[predictions < epsilon] = epsilon
+    gene_structure_all_states, columns_dict, gene_list, first_decode_time = run_decoding(current_min_intron_length=1)
+    second_decode_time = 0.0
+    rerun_with_target_min_intron = False
+    if min_intron_length > 1:
+        has_short_intron = False
+        for gene in gene_list:
+            for intron_start, intron_end in gene['intron']:
+                intron_length = intron_end - intron_start + 1
+                if intron_length < min_intron_length:
+                    has_short_intron = True
+                    break
+            if has_short_intron:
+                break
+
+        if has_short_intron:
+            rerun_with_target_min_intron = True
+            gene_structure_all_states, columns_dict, gene_list, second_decode_time = run_decoding(
+                current_min_intron_length=min_intron_length
+            )
+
+    filtered_gene_list = []
+    for gene in gene_list:
+        CDS_list_init = gene['CDS']
+
+        if not CDS_list_init:
             continue
-        gene_attribute = (CDS_list, intron_list, CDS_score, CDS_score_list, first_CDS_position)
+        CDS_count = sum((CDS[1] - CDS[0] + 1) for CDS in CDS_list_init)
+        if CDS_count < min_cds_length:
+            continue
+        CDS_score, CDS_score_list = calculate_gene_score2(gene_structure_all_states, predictions, CDS_list_init,
+                                                         columns_dict)
+        if CDS_score < min_cds_score:
+            continue
+
+        CDS_list = [(start + location_start, end + location_start) for start, end in CDS_list_init]
+        first_CDS_position = CDS_list[0][0]
+        gene_attribute = (CDS_list, CDS_score, CDS_score_list, first_CDS_position)
         filtered_gene_list.append(gene_attribute)
     return filtered_gene_list
 
 
-def process_gene_segment(region, model_prediction_path, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
-    location_start, location_end, seq_id, strand, prediction_slice, sequence_slice = region
-
-    if location_start is None:
-        gene_list = []
-    else:
-        with h5py.File(model_prediction_path, 'r') as f:
-            if strand == 1:
-                prediction_slice = f[seq_id]['predictions_forward'][location_start:location_end]
-            else:
-                prediction_slice = f[seq_id]['predictions_reverse'][location_start:location_end]
-
-        sequence_forward = str(_global_genome_seq[seq_id].seq).upper()
-        if strand == 1:
-            sequence_slice = sequence_forward[location_start:location_end]
-        else:
-            sequence_slice = reverse_complement(sequence_forward)[location_start:location_end]
-
-        gene_list = decode_gene_structure(
-            location_start,
-            prediction_slice,
-            sequence_slice,
-            min_cds_length,
-            min_cds_score,
-            min_intron_length,
-            at_ac_splicing
-        )
-    return gene_list, seq_id, strand
-
-
 def write_result(file, num, seq_id, result, length, strand):
-    CDS_list, intron_list, CDS_score, CDS_score_list, _ = result
+    CDS_list, CDS_score, CDS_score_list, _ = result
     file.write(f'# Start gene g{num + 1}\n')
-    file.write(f'# The CDS score is {CDS_score}\n')
+    file.write(f'# The gene score is {CDS_score:.4f}\n')
     if strand == 1:
         gene_start, gene_end = CDS_list[0][0], CDS_list[-1][1]
         gene_start, gene_end = gene_start + 1, gene_end + 1  # 0-based to 1-based
@@ -246,14 +389,68 @@ def write_result(file, num, seq_id, result, length, strand):
     file.write(f'###\n')
 
 
-def decode_and_write(potential_gene_list, chromosome_length, model_prediction_path, seq_num, cpu_num, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing, output):
+def batched(iterable, batch_size):
+    iterator = iter(iterable)
+    while True:
+        batch = list(islice(iterator, batch_size))
+        if not batch:
+            break
+        yield batch
+
+
+def process_gene_segment_batch(regions, model_prediction_path, min_cds_length, min_cds_score, min_intron_length,
+                               boundary_aware=False):
     results = []
+    for region in regions:
+        location_start, location_end, seq_id, strand, prediction_slice, sequence_slice = region
+        if location_start is None:
+            gene_list = []
+        else:
+            with h5py.File(model_prediction_path, 'r') as f:
+                if strand == 1:
+                    prediction_slice = f[seq_id]['predictions_forward'][location_start:location_end]
+                else:
+                    prediction_slice = f[seq_id]['predictions_reverse'][location_start:location_end]
+
+            decode_fn = decode_gene_structure2 if boundary_aware else decode_gene_structure
+            gene_list = decode_fn(
+                location_start,
+                prediction_slice,
+                sequence_slice,
+                min_cds_length,
+                min_cds_score,
+                min_intron_length
+            )
+        results.append((gene_list, seq_id, strand))
+    return results
+
+
+def decode_and_write(potential_gene_list, chromosome_length, model_prediction_path, seq_num, cpu_num,
+                     min_cds_length, min_cds_score, min_intron_length, output, show_log=False,
+                     boundary_aware=False):
+    results = []
+    batch_size = 16
+    batch_iter = batched(potential_gene_list, batch_size)
+
     with ProcessPoolExecutor(max_workers=cpu_num) as executor:
-        future_to_segment = {executor.submit(process_gene_segment, region, model_prediction_path, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing): region for region in potential_gene_list}
-        for future in as_completed(future_to_segment):
+        future_to_batch = {
+            executor.submit(
+                process_gene_segment_batch,
+                batch,
+                model_prediction_path,
+                min_cds_length,
+                min_cds_score,
+                min_intron_length,
+                boundary_aware
+            ): batch for batch in batch_iter
+        }
+        future_iter = as_completed(future_to_batch)
+        if show_log:
+            future_iter = tqdm(future_iter, total=len(future_to_batch), desc='Decoding segment batches')
+        for future in future_iter:
             try:
-                result = future.result()
-                results.append(result)
+                batch_results = future.result()
+                results.extend(batch_results)
             except Exception as e:
                 print(f"Process failed: {str(e)}")
                 continue
@@ -302,7 +499,6 @@ def decode_and_write(potential_gene_list, chromosome_length, model_prediction_pa
                     gene_num += 1
                     file.flush()
             seq_num += 1
-    return seq_num
 
 
 def expand_and_merge_regions(regions, seq_length, buffer_size=100):
@@ -330,93 +526,135 @@ def expand_and_merge_regions(regions, seq_length, buffer_size=100):
     return merged
 
 
-def get_gene_region(genome_predictions, genome_seq, average_threshold, max_threshold):
+def get_gene_region(chromosome, predictions_forward, predictions_reverse, sequence_forward, sequence_reverse,
+                    average_threshold, max_threshold, min_cds_length):
     potential_gene_list = []
-    chromosome_length = {}
-    for chromosome in genome_predictions:
-        predictions_forward, predictions_reverse = genome_predictions[chromosome]
-        chromosome_seq_record = genome_seq[chromosome]
-        sequence_forward = str(chromosome_seq_record.seq).upper()
-        sequence_reverse = reverse_complement(sequence_forward)
-        length = len(sequence_forward)
-        chromosome_length[chromosome] = length
-        '''
-        position index conversion
-        The position tuple in the forward array is (a, b) 
-        The position tuple in the forward chains of gff is (a + 1, b)
-        The position tuple in the reverse chains of gff is (length - b + 1, length - (a + 1) + 1) = (length - b + 1, length - a)
-        The position tuple in the reverse array is (length - b, length - a) 
-        '''
-        potential_gene_chromosome_forward = detect_gene_location(predictions_forward, length, average_threshold, max_threshold)
-        potential_gene_chromosome_forward = expand_and_merge_regions(
-            potential_gene_chromosome_forward, length, buffer_size=100
+    length = len(sequence_forward)
+    '''
+    position index conversion
+    The position tuple in the forward array is (a, b) 
+    The position tuple in the forward chains of gff is (a + 1, b)
+    The position tuple in the reverse chains of gff is (length - b + 1, length - (a + 1) + 1) = (length - b + 1, length - a)
+    The position tuple in the reverse array is (length - b, length - a) 
+    '''
+
+    potential_gene_chromosome_forward = detect_gene_location(
+        predictions_forward,
+        length,
+        average_threshold,
+        max_threshold,
+        min_cds_length
+    )
+    potential_gene_chromosome_forward = expand_and_merge_regions(
+        potential_gene_chromosome_forward, length, buffer_size=100
+    )
+    if not potential_gene_chromosome_forward:
+        potential_gene_list.append(
+            (None, None, chromosome, 1, None, None)
         )
-        if not potential_gene_chromosome_forward:
+    else:
+        for location_start, location_end in potential_gene_chromosome_forward:
             potential_gene_list.append(
-                (None, None, chromosome, 1, None, None)
+                (location_start, location_end, chromosome, 1,
+                 None,
+                 sequence_forward[location_start:location_end])
             )
-        else:
-            for location_start, location_end in potential_gene_chromosome_forward:
-                potential_gene_list.append(
-                    (location_start, location_end, chromosome, 1,
-                     None,
-                     None)
-                )
-        potential_gene_chromosome_reverse = detect_gene_location(predictions_reverse, length, average_threshold, max_threshold)
-        potential_gene_chromosome_reverse = expand_and_merge_regions(
-            potential_gene_chromosome_reverse, length, buffer_size=100
+
+    potential_gene_chromosome_reverse = detect_gene_location(
+        predictions_reverse,
+        length,
+        average_threshold,
+        max_threshold,
+        min_cds_length
+    )
+    potential_gene_chromosome_reverse = expand_and_merge_regions(
+        potential_gene_chromosome_reverse, length, buffer_size=100
+    )
+    if not potential_gene_chromosome_reverse:
+        potential_gene_list.append(
+            (None, None, chromosome, -1, None, None)
         )
-        if not potential_gene_chromosome_reverse:
+    else:
+        for location_start, location_end in potential_gene_chromosome_reverse:
             potential_gene_list.append(
-                (None, None, chromosome, -1, None, None)
+                (location_start, location_end, chromosome, -1,
+                 None,
+                 sequence_reverse[location_start:location_end])
             )
-        else:
-            for location_start, location_end in potential_gene_chromosome_reverse:
-                potential_gene_list.append(
-                    (location_start, location_end, chromosome, -1,
-                     None,
-                     None)
-                )
 
-    return chromosome_length, potential_gene_list
+    return length, potential_gene_list
 
 
-def gene_structure_decoding(genome, model_prediction_path, genome_size_threshold, output, cpu_num, average_threshold, max_threshold, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing):
-    with open(genome) as fna:
-        genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
-    global _global_genome_seq
-    _global_genome_seq = genome_seq
-    with open(output, 'w') as file:
-        file.write('# This output was generated with ANNEVO v2.2.2.\n')
-        file.write('# ANNEVO is an ab initio gene annotation tool written by YeLab.\n')
-        file.write('# Citation: Zhang, P., Xu, T., Wang, S. et al. Highly accurate ab initio gene annotation with ANNEVO. Nat Methods (2026). https://doi.org/10.1038/s41592-026-03036-7\n')
-    seq_num = 1
+def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, average_threshold, max_threshold,
+                            min_cds_length, min_cds_score, min_intron_length, show_log=False,
+                            boundary_aware=False):
     file_loading_time = 0
-    cumulative_size = 0
+    chromosome_length = {}
+    potential_gene_list = []
+    prediction_format_checked = False
 
-    genome_predictions = {}
-
+    genome_seqIO = SeqIO.index(genome, "fasta")
     with h5py.File(f'{model_prediction_path}', 'r') as h5file:
-        for chr_name in h5file.keys():
+        chromosome_iter = h5file.keys()
+        if show_log:
+            chromosome_iter = tqdm(list(chromosome_iter), desc='Loading data and detecting potential genes')
+        for chr_name in chromosome_iter:
+            # if chr_name != 'NW_020622381.1':
+            #     continue
+
+            sequence_forward = str(genome_seqIO[chr_name].seq).upper()
+            sequence_forward = re.sub(r'[^ATCGatcg]', 'N', sequence_forward)
+            sequence_reverse = rev_complement(sequence_forward)
+
             start_time = time.time()
             chr_group = h5file[chr_name]
             predictions_forward = np.array(chr_group['predictions_forward'])
             predictions_reverse = np.array(chr_group['predictions_reverse'])
+            if not prediction_format_checked:
+                num_classes = predictions_forward.shape[1]
+                valid_standard = num_classes == 5 and not boundary_aware
+                valid_boundary = num_classes == 15 and boundary_aware
+                if not (valid_standard or valid_boundary):
+                    mode = "boundary-aware" if boundary_aware else "standard"
+                    raise ValueError(
+                        f"Incompatible prediction format for {mode} decoding: "
+                        f"got {num_classes} classes. "
+                        "Use 15-class predictions with --boundary-aware, or 5-class predictions without it."
+                    )
+                prediction_format_checked = True
             end_time = time.time()
             file_loading_time += (end_time - start_time)
-            genome_predictions[chr_name] = [predictions_forward, predictions_reverse]
-            cumulative_size += len(predictions_forward)
+            chromosome_length_single, potential_gene_list_single = get_gene_region(
+                chr_name,
+                predictions_forward,
+                predictions_reverse,
+                sequence_forward,
+                sequence_reverse,
+                average_threshold,
+                max_threshold,
+                min_cds_length
+            )
+            chromosome_length[chr_name] = chromosome_length_single
+            potential_gene_list.extend(potential_gene_list_single)
 
-            if cumulative_size > genome_size_threshold:
-                chromosome_length, potential_gene_list = get_gene_region(genome_predictions, genome_seq, average_threshold, max_threshold)
-                del genome_predictions
-                seq_num = decode_and_write(potential_gene_list, chromosome_length, model_prediction_path, seq_num, cpu_num, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing, output)
-                # Reinitialization
-                cumulative_size = 0
-                genome_predictions = {}
-        if genome_predictions:
-            chromosome_length, potential_gene_list = get_gene_region(genome_predictions, genome_seq, average_threshold, max_threshold)
-            del genome_predictions
-            seq_num = decode_and_write(potential_gene_list, chromosome_length, model_prediction_path, seq_num, cpu_num, min_cds_length, min_cds_score, min_intron_length, at_ac_splicing, output)
+    seq_num = 1
+    with open(output, 'w') as file:
+        file.write('# This output was generated with ANNEVO v2.2.3.\n')
+        file.write('# ANNEVO is an ab initio gene annotation tool written by YeLab.\n')
+        file.write('# Citation: Zhang, P., Xu, T., Wang, S. et al. Highly accurate ab initio gene annotation with ANNEVO. Nat Methods (2026). https://doi.org/10.1038/s41592-026-03036-7\n')
+    if potential_gene_list:
+        decode_and_write(
+            potential_gene_list,
+            chromosome_length,
+            model_prediction_path,
+            seq_num,
+            cpu_num,
+            min_cds_length,
+            min_cds_score,
+            min_intron_length,
+            output,
+            show_log=show_log,
+            boundary_aware=boundary_aware
+        )
 
     print(f"file loading cost {file_loading_time:.1f} seconds")

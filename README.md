@@ -1,20 +1,17 @@
-# ANNEVO (v2.2.2)
+# ANNEVO (v2.2.3)
 ## Recent Updates
-We optimized the search logic for candidate intervals during decoding, improving performance with less than a 1% impact on runtime.  
-Note: We removed the older models from the current release to avoid users inadvertently using suboptimal versions, while keeping them available through previous releases.
+1. **Released a new model for the `Magnoliopsida` clade (flowering plants, Tax ID: 3398), covering both `monocots` and `dicots`.** Preliminary evaluation (using gffcompare) on two representative species are provided below. See `docs/boundary_aware_model.md` for details and usage instructions.
+2. **Optimized the parallel decoding logic for large genomes and multithreaded settings. This improvement applies to all model.** In our evaluation, decoding time on the human genome was reduced from ~2800 s to ~1900 s (~30%). 
+3. **Improved the logic for applying `min_intron_length`**, so that for most gene segments it no longer introduces extra decoding time.
 
-
-| Species                 |            Version            | BUSCO_odb10 | NT(CDS)-F1 | NT(intron)-F1 |
-|:------------------------|:-----------------------------:|------------:|-----------:|--------------:|
-| Homo_sapiens            | v2.0 (used in the manuscript) |        95.7 |       91.6 |          86.4 |
-| Homo_sapiens            |            v2.2.1             |        97.5 |       92.9 |          88.9 |
-| Homo_sapiens            |            v2.2.2             |        97.9 |       93.1 |          88.9 |
-| **————————**            |         **————————**          |    **————** |   **————** |      **————** |
-| Drosophila_melanogaster | v2.0 (used in the manuscript) |        98.6 |       96.6 |          86.5 |
-| Drosophila_melanogaster |            v2.2.1             |        98.7 |       96.7 |          89.8 |
-| Drosophila_melanogaster |            v2.2.2             |        99.2 |       97.0 |          89.9 |
+| Species              | BUSCO (brassicales_odb12) | Base-recall | Base-precision | Exon-recall | Exon-precision | Locus-recall | Locus-precision |
+|:---------------------|:-------------------------:|------------:|---------------:|------------:|---------------:|-------------:|----------------:|
+| Arabidopsis_thaliana |           99.5            |        93.3 |           96.7 |        89.6 |           94.2 |         81.3 |            89.3 |
+| **————————**         |   BUSCO (poales_odb12)    |    **————** |       **————** |    **————** |       **————** |     **————** |        **————** |  
+| Oryza_sativa         |           99.5            |        91.4 |           91.6 |        90.5 |           89.6 |         80.1 |            78.5 |
 
 ## Update history
+#### 2026-04 (v2.2.3): Added a new plant model and improved over 30% decoding speed.
 #### 2026-03 (v2.2.2): Optimized the search logic for candidate intervals during decoding.
 #### 2026-01 (v2.2.1): Released two new models for Insecta and Mammalia, trained with the new data processing and training pipeline.
 #### 2025-10 (v2.2): Memory usage optimization.  
@@ -31,6 +28,8 @@ Note: ANNEVO is not licensed under the GNU GPL or any OSI-approved open source l
 It is distributed under the ANNEVO Non-Commercial License, which restricts commercial use.
 
 # Installation
+Note: We found that, in some specific cases, installation failures were mainly caused by version changes in the dependencies of certain packages, which made it impossible to satisfy all version requirements simultaneously. To address this, we adjusted the installation sources for some dependencies so that the environment can now be installed directly from the YAML file. We will check once per month whether the YAML file remains directly installable, to ensure a smooth and convenient installation experience for users.  
+
 We recommend using the conda virtual environment to install ANNEVO (Platform: Linux).
 ```bash
 # Get the source code
@@ -39,6 +38,7 @@ cd ANNEVO
 ```
 If your CUDA version is higher than 12.1, you can directly install the environment using:
 ```
+# Available on 2026-04-17 
 conda env create -f ANNEVO.yml -n your_env_name
 ```
 Alternatively, you can follow the steps below to install the environment manually.
@@ -52,14 +52,11 @@ conda activate ANNEVO
 
 # To use GPU acceleration properly, we recommend installing PyTorch using the 
 # official installation commands provided by PyTorch (https://pytorch.org/get-started/previous-versions/). 
-# Note: We have received feedback that on some newer high-level GPUs such as H100 or A100, 
-# using PyTorch 1.10 may lead to certain errors. Although ANNEVO was originally developed under PyTorch 1.10, 
-# it is fully compatible with PyTorch 2.x.
 # A sample installation command is shown below:
 conda install pytorch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 pytorch-cuda=12.1 -c pytorch -c nvidia
 
 # Install other packages
-pip install -r requirements.txt
+conda install -c bioconda -c conda-forge bcbio-gff=0.7.1 h5py=3.14 torchmetrics=0.8.2 pandas=2.3.3 numpy=1.26.4 tqdm==4.67.1
 ```
 
 Check if CUDA is available:
@@ -68,13 +65,13 @@ python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda
 ```
 
 # Usage
-Generally, ANNEVO can achieve good annotation performance as long as the training set contains species from the same class level, even if there are only one or two. You can refer to `train_class.txt` to see which classes are included in the training set.
+Note: Now you can use `--show_log` to view the decoding progress.
 ## One-step Execution
 ```bash
 python annotation.py --genome path_to_genome --model_path path_to_model --output path_to_gff --threads 48
 ```
 We strongly recommend utilizing more CPU cores by adjusting threads when sufficient computational resources are available, as this will significantly accelerate the computation. If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.  
-Note: ANNEVO automatically supports use in a multi-GPU environment. If GPU resources are insufficient, you can adjust it by `--batch_size`. For example, adding the parameter `--batch_size 8` only requires about 3G GPU memory.
+Note: ANNEVO automatically supports use in a multi-GPU environment. If GPU resources are insufficient, you can adjust it by `--batch_size`. For example, adding the parameter `--batch_size 8` only requires <2G GPU memory.
 
 ## Step-by-step Execution
 Typically, deep learning is conducted in environments equipped with GPU resources, where CPU resources are often limited. However, decoding gene structures usually requires substantial CPU resources. To address this, we provide a segmented execution approach, allowing users to flexibly switch between computational nodes/environments with different resources.  

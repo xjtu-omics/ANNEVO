@@ -11,8 +11,8 @@ import time
 import torch.nn as nn
 
 
-def reverse_complement(dna_sequence):
-    complement_map = str.maketrans('ATGCRMYWKBSHDVNXatgcrmywkbshdvnx', 'TACGRMYWKBSHDVNXtacgrmywkbshdvnx')
+def rev_complement(dna_sequence):
+    complement_map = str.maketrans('ATGCatgcNXnx', 'TACGtacgNXnx')
     return dna_sequence.translate(complement_map)[::-1]
 
 
@@ -99,13 +99,12 @@ def save_prediction_result(genome_predictions, prediction_path):
     return end_time - start_time
 
 
-def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers, prediction_path, batch_size, window_size, flank_length, channels, dim_feedforward,
-                          num_encoder_layers, num_heads, num_blocks, num_branches, num_classes):
+def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers, prediction_path, batch_size, window_size, flank_length, num_classes):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     with open(genome) as fna:
         genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
 
-    model = model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes, top_k=2)
+    model = model_construction(device, window_size, flank_length, num_classes)
     model = model_load_weights(model_path, model, device)
     model.eval()
     chunk_num = 1
@@ -143,7 +142,7 @@ def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers
             else:
                 window_seq_forward = sequence_forward[start - flank_length:end + flank_length]
             windows_forward.append(window_seq_forward)
-            windows_reverse_disorder.append(reverse_complement(window_seq_forward))
+            windows_reverse_disorder.append(rev_complement(window_seq_forward))
             count += 1
         windows_reverse += windows_reverse_disorder[::-1]
         offset.append(count)

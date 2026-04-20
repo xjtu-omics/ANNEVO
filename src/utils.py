@@ -38,9 +38,9 @@ def init_dist():
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
-def model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes, top_k):
-    model = model_architecture.ANNEVO(channels, dim_feedforward, num_classes, num_heads, num_encoder_layers, window_size, flank_length, num_blocks, num_branches, top_k)
-
+def model_construction(device, window_size, flank_length, num_classes):
+    model = model_architecture.ANNEVO(channels=64, dim_feedforward=768, num_classes=num_classes, num_heads=8, num_encoder_layers=6,
+                                      window_size=window_size, flank_length=flank_length, num_blocks=5, num_branches=8, top_k=2)
     if device.type != 'cpu' and torch.cuda.device_count() > 1:
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = nn.DataParallel(model)

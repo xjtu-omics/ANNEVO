@@ -2,15 +2,12 @@ import numpy as np
 from tqdm import tqdm
 
 
-def define_state(intron_group, min_intron_length, at_ac_splicing):
+def define_state(intron_group, min_intron_length):
     states = ['intergenic', 'start0', 'start1', 'start2', 'CDS0', 'CDS0_T', 'CDS1', 'CDS1_TA', 'CDS1_TG', 'CDS2', 'end0', 'end1_TA', 'end1_TG', 'end2',
               'CDS0_ext', 'CDS0_T_ext', 'CDS1_ext', 'CDS1_TA_ext', 'CDS1_TG_ext', 'CDS2_ext']
 
     intron_columns = []
-    if at_ac_splicing:
-        splice_mode = ['GT_AG', 'AT_AC']
-    else:
-        splice_mode = ['GT_AG']
+    splice_mode = ['GT_AG']
     for state in intron_group:
         for splice in splice_mode:
             states.append(f'{state}_{splice}_DSS_0')
@@ -39,17 +36,14 @@ def define_state(intron_group, min_intron_length, at_ac_splicing):
 
 
 def set_transition_matrix_four_bases(init_transition_matrix, states_to_num, intron_group, min_intron_length,
-                                     exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty, at_ac_splicing):
+                                     exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty):
     transition_matrix_A = init_transition_matrix.copy()
     transition_matrix_G = init_transition_matrix.copy()
     transition_matrix_C = init_transition_matrix.copy()
     transition_matrix_T = init_transition_matrix.copy()
     transition_matrix_other = init_transition_matrix.copy()
 
-    if at_ac_splicing:
-        splice_mode = ['GT_AG', 'AT_AC']
-    else:
-        splice_mode = ['GT_AG']
+    splice_mode = ['GT_AG']
     # current base == A
     transition_matrix_A[states_to_num['CDS0_T'], states_to_num['CDS1_TA']] = exon_sustain_penalty
     transition_matrix_A[states_to_num['CDS0_T_ext'], states_to_num['CDS1_TA_ext']] = exon_sustain_penalty
@@ -146,25 +140,18 @@ def set_transition_matrix_four_bases(init_transition_matrix, states_to_num, intr
 
 
 def set_transition_matrix(transition_matrix, states_to_num, intron_group, min_intron_length, current_base,
-                          exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty, threshold, current_emit_penalty, at_ac_splicing):
+                          exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty, threshold, current_emit_penalty):
     if current_base == 'A':
         if current_emit_penalty[states_to_num['start0']] < threshold:
             transition_matrix[states_to_num[f'intergenic'], states_to_num[f'start0']] = current_emit_penalty[states_to_num['start0']] * 10
         else:
             transition_matrix[states_to_num[f'intergenic'], states_to_num[f'start0']] = 0
-        if at_ac_splicing:
-            for state in intron_group:
-                transition_matrix[states_to_num[f'{state}'], states_to_num[f'{state}_AT_AC_DSS_0']] = current_emit_penalty[states_to_num[f'{state}_AT_AC_DSS_0']] * 100
-                transition_matrix[states_to_num[f'{state}_AT_AC_intron_{min_intron_length - 1}'], states_to_num[f'{state}_AT_AC_ASS_0']] = current_emit_penalty[states_to_num[f'{state}_AT_AC_ASS_0']] * 100
 
     elif current_base == 'T':
         if current_emit_penalty[states_to_num['start1']] < threshold:
             transition_matrix[states_to_num[f'start0'], states_to_num[f'start1']] = current_emit_penalty[states_to_num['start1']] * 10
         else:
             transition_matrix[states_to_num[f'start0'], states_to_num[f'start1']] = 0
-        if at_ac_splicing:
-            for state in intron_group:
-                transition_matrix[states_to_num[f'{state}_AT_AC_DSS_0'], states_to_num[f'{state}_AT_AC_DSS_1']] = current_emit_penalty[states_to_num[f'{state}_AT_AC_DSS_1']] * 100
 
     elif current_base == 'G':
         if current_emit_penalty[states_to_num['start2']] < threshold:
@@ -174,15 +161,12 @@ def set_transition_matrix(transition_matrix, states_to_num, intron_group, min_in
     elif current_base == 'C':
         for state in intron_group:
             transition_matrix[states_to_num[f'{state}_GT_AG_DSS_0'], states_to_num[f'{state}_GT_AG_DSS_1']] = current_emit_penalty[states_to_num[f'{state}_GT_AG_DSS_1']] * 1000
-        if at_ac_splicing:
-            for state in intron_group:
-                transition_matrix[states_to_num[f'{state}_AT_AC_ASS_0'], states_to_num[f'{state}_AT_AC_ASS_1']] = current_emit_penalty[states_to_num[f'{state}_AT_AC_ASS_1']] * 100
 
     return transition_matrix
 
 
 def set_transition_matrix_common_state(transition_matrix, states_to_num, intron_group, min_intron_length,
-                                       exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty, at_ac_splicing):
+                                       exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty):
     transition_matrix[states_to_num['intergenic'], states_to_num['intergenic']] = 0
     transition_matrix[states_to_num['CDS0'], states_to_num['CDS1']] = exon_sustain_penalty
     transition_matrix[states_to_num['CDS1'], states_to_num['CDS2']] = exon_sustain_penalty
@@ -192,10 +176,6 @@ def set_transition_matrix_common_state(transition_matrix, states_to_num, intron_
     for splice in ['GT_AG']:
         transition_matrix[states_to_num[f'CDS0_{splice}_ASS_1'], states_to_num[f'CDS1_ext']] = 0
         transition_matrix[states_to_num[f'CDS1_{splice}_ASS_1'], states_to_num[f'CDS2_ext']] = 0
-    if at_ac_splicing:
-        for splice in ['AT_AC']:
-            transition_matrix[states_to_num[f'CDS0_{splice}_ASS_1'], states_to_num[f'CDS1_ext']] = 0
-            transition_matrix[states_to_num[f'CDS1_{splice}_ASS_1'], states_to_num[f'CDS2_ext']] = 0
 
     for state in intron_group:
         transition_matrix[states_to_num[f'{state}_GT_AG_DSS_1'], states_to_num[f'{state}_GT_AG_intron_0']] = 0
@@ -203,26 +183,16 @@ def set_transition_matrix_common_state(transition_matrix, states_to_num, intron_
         if min_intron_length > 1:
             for i in range(min_intron_length - 1):
                 transition_matrix[states_to_num[f'{state}_GT_AG_intron_{i}'], states_to_num[f'{state}_GT_AG_intron_{i + 1}']] = 0
-    if at_ac_splicing:
-        for state in intron_group:
-            transition_matrix[states_to_num[f'{state}_AT_AC_DSS_1'], states_to_num[f'{state}_AT_AC_intron_0']] = 0
-            transition_matrix[states_to_num[f'{state}_AT_AC_intron_{min_intron_length - 1}'], states_to_num[f'{state}_AT_AC_intron_{min_intron_length - 1}']] = intron_sustain_penalty
-            if min_intron_length > 1:
-                for i in range(min_intron_length - 1):
-                    transition_matrix[states_to_num[f'{state}_AT_AC_intron_{i}'], states_to_num[f'{state}_AT_AC_intron_{i + 1}']] = 0
 
     return transition_matrix
 
 
 def viterbi_decoding(predictions, sequence, states_to_num, num_states, phase_0_columns, phase_1_columns, phase_2_columns, intron_columns, intron_group,
-                     min_intron_length, at_ac_splicing, expect_exon=None, expect_intron=None):
+                     min_intron_length, expect_exon=None, expect_intron=None):
     """
     Decoding gene structure using viterbi algorithm.
     """
     np.seterr(divide='ignore', invalid='ignore')
-    epsilon = 1e-64
-    extra_penalty_coefficient = 5
-    predictions[predictions < epsilon] = epsilon
 
     seq_length = predictions.shape[0]
     log_emit_probs = np.zeros((seq_length, num_states))
@@ -250,10 +220,10 @@ def viterbi_decoding(predictions, sequence, states_to_num, num_states, phase_0_c
 
     init_transition_matrix = np.full((num_states, num_states), -np.inf)
     init_transition_matrix = set_transition_matrix_common_state(init_transition_matrix, states_to_num, intron_group, min_intron_length,
-                                                                exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty, at_ac_splicing)
+                                                                exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty)
     (transition_matrix_A, transition_matrix_G, transition_matrix_C,
      transition_matrix_T, transition_matrix_other) = set_transition_matrix_four_bases(init_transition_matrix, states_to_num, intron_group, min_intron_length,
-                                                                                      exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty, at_ac_splicing)
+                                                                                      exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty)
     path = np.zeros((seq_length, num_states), dtype=int)
     dp = np.full((seq_length, num_states), -np.inf)
     dp[0, 0] = 0
@@ -272,10 +242,10 @@ def viterbi_decoding(predictions, sequence, states_to_num, num_states, phase_0_c
         elif current_base == 'T':
             transition_matrix = transition_matrix_T
         else:
-            transition_matrix = transition_matrix_G
+            transition_matrix = transition_matrix_other
 
         transition_matrix = set_transition_matrix(transition_matrix, states_to_num, intron_group, min_intron_length, current_base,
-                                                  exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty, threshold, current_emit_penalty, at_ac_splicing)
+                                                  exon_sustain_penalty, exon_quit_penalty, intron_sustain_penalty, intron_quit_penalty, threshold, current_emit_penalty)
 
         current_penalty = transition_matrix + log_emit_probs[t]
         total_probs = dp[t - 1, :, None] + current_penalty
