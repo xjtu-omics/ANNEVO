@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import os
 from data_process.data_load import get_dataloader
 from tqdm import tqdm
 from model.loss_function import DiceLoss, multi_loss, FocalLoss
@@ -54,9 +55,9 @@ def training_loop(model, train_dataloader, optimizer, device, num_branches, loss
 
 
 def tuning(model_path, model_save_path, h5_path, learning_rate, epoch, batch_size,
-           window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches):
+           window_size, flank_length, num_branches, num_classes):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes=5, top_k=2)
+    model = model_construction(device, window_size, flank_length, num_classes=num_classes)
     core_model = model.module if hasattr(model, 'module') else model
     print(model)
     # freeze FE and MoE
@@ -87,7 +88,7 @@ def tuning(model_path, model_save_path, h5_path, learning_rate, epoch, batch_siz
     ---------------------------------Train phase 2---------------------------------
     Train model on all region.
     '''
-    train_dataloader = get_dataloader(f'{h5_path}/fine_tune_with_intergenic.h5', batch_size, num_workers=8)
+    train_dataloader = get_dataloader(os.path.join(h5_path, 'fine_tune_with_intergenic.h5'), batch_size, num_workers=8)
     training_loop(model, train_dataloader, optimizer, device, num_branches, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2,
                   loss_fn_dice_intron, coefficient, epoch, model_save_path, training_phase=2)
 

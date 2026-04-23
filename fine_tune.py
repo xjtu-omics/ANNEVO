@@ -18,16 +18,10 @@ def main():
                         help='The number of bases in a window. Note: this parameter should be the same with it in data procession and gene decoding.')
     parser.add_argument('--flank_length', type=int, default=5120,
                         help='The length of flanking sequence. Note: this parameter should be the same with it in data procession and gene decoding.')
-    parser.add_argument('--channels', type=int, default=64, help='The number of channels in Conv layer. Note: this parameter should be the same with it in gene decoding.')
-    parser.add_argument('--dim_feedforward', type=int, default=768,
-                        help='The dimension of linear layer in Transformer encoder. Note: this parameter should be the same with it in gene decoding.')
-    parser.add_argument('--num_encoder_layers', type=int, default=6,
-                        help='The number of transformer encoder layer in each block. Note: this parameter should be the same with it in gene decoding.')
-    parser.add_argument('--num_heads', type=int, default=8,
-                        help='The number of attention heads in multi-heads attention. Note: this parameter should be the same with it in gene decoding.')
-    parser.add_argument('--num_blocks', type=int, default=5, help='The number of Conv blocks. Note: this parameter should be the same with it in gene decoding.')
     parser.add_argument('--num_branches', type=int, default=8,
                         help='The number of simulated evolutionary branches. Note: this parameter should be the same with it in gene decoding.')
+    parser.add_argument('--num_classes', type=int, default=5,
+                        help='The number of output classes. Note: this parameter should be the same with it in gene decoding and prediction.')
     args = parser.parse_args()
 
     output_dir = os.path.dirname(args.model_save_path)
@@ -35,8 +29,7 @@ def main():
         os.makedirs(output_dir)
 
     tuning(args.model_path, args.model_save_path, args.h5_path, args.learning_rate, args.epoch, args.batch_size,
-           args.window_size, args.flank_length, args.channels, args.dim_feedforward, args.num_encoder_layers,
-           args.num_heads, args.num_blocks, args.num_branches)
+           args.window_size, args.flank_length, args.num_branches, args.num_classes)
 
 
 if __name__ == '__main__':

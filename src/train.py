@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import os
 from data_process.data_load import get_dataloader
 from tqdm import tqdm
 from model.early_stop import EarlyStopping
@@ -9,7 +10,7 @@ from src.utils import model_construction, model_load_weights
 import gc
 
 
-def training_loop(model, train_dataloader, val_dataloader, optimizer, device, scheduler, num_branches, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2,
+def training_loop(model, train_dataloader, val_dataloader, optimizer, device, scheduler, num_branches, num_classes, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2,
                   loss_fn_dice_intron, coefficient, early_stopping, epoch, training_phase):
     for i in range(epoch):
         print(f'Epoch {i + 1}/{epoch}')
@@ -51,11 +52,11 @@ def training_loop(model, train_dataloader, val_dataloader, optimizer, device, sc
         if training_phase == 1:
             if (i+1) % 1 == 0:
                 checkpoint_metrics = model_evaluate(model, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2, loss_fn_dice_intron, coefficient,
-                                                    5, device, val_dataloader, num_branches)
+                                                    num_classes, device, val_dataloader, num_branches)
                 torch.save(model.state_dict(), early_stopping.path)
         if training_phase == 2:
             checkpoint_metrics = model_evaluate(model, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2, loss_fn_dice_intron, coefficient,
-                                                5, device, val_dataloader, num_branches)
+                                                num_classes, device, val_dataloader, num_branches)
             early_stopping(checkpoint_metrics, model)
             if early_stopping.early_stop:
                 print("Early stopping")
@@ -65,9 +66,9 @@ def training_loop(model, train_dataloader, val_dataloader, optimizer, device, sc
 
 
 def model_train(model_save_path, h5_path, learning_rate, epoch, batch_size, patience, warmup_steps,
-                window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches):
+                window_size, flank_length, num_branches, num_classes):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = model_construction(device, window_size, flank_length, channels, dim_feedforward, num_encoder_layers, num_heads, num_blocks, num_branches, num_classes=5, top_k=2)
+    model = model_construction(device, window_size, flank_length, num_classes=num_classes)
 
     print(model)
     trainable_para_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -91,9 +92,9 @@ def model_train(model_save_path, h5_path, learning_rate, epoch, batch_size, pati
     ---------------------------------Train phase 1---------------------------------
     Only train model on gene region.
     '''
-    train_dataloader = get_dataloader(f'{h5_path}/train.h5', batch_size, num_workers=8)
-    val_dataloader = get_dataloader(f'{h5_path}/val.h5', batch_size, num_workers=8)
-    training_loop(model, train_dataloader, val_dataloader, optimizer, device, scheduler, num_branches, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2,
+    train_dataloader = get_dataloader(os.path.join(h5_path, 'train.h5'), batch_size, num_workers=8)
+    val_dataloader = get_dataloader(os.path.join(h5_path, 'val.h5'), batch_size, num_workers=8)
+    training_loop(model, train_dataloader, val_dataloader, optimizer, device, scheduler, num_branches, num_classes, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2,
                   loss_fn_dice_intron, coefficient, early_stopping, epoch=15, training_phase=1)
     del train_dataloader, val_dataloader
 
@@ -101,7 +102,7 @@ def model_train(model_save_path, h5_path, learning_rate, epoch, batch_size, pati
     ---------------------------------Train phase 2---------------------------------
     Train model on all region.
     '''
-    train_dataloader = get_dataloader(f'{h5_path}/train_with_intergenic.h5', batch_size, num_workers=8)
-    val_dataloader = get_dataloader(f'{h5_path}/val_with_intergenic.h5', batch_size, num_workers=8)
-    training_loop(model, train_dataloader, val_dataloader, optimizer, device, scheduler, num_branches, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2,
+    train_dataloader = get_dataloader(os.path.join(h5_path, 'train_with_intergenic.h5'), batch_size, num_workers=8) 
+    val_dataloader = get_dataloader(os.path.join(h5_path, 'val_with_intergenic.h5'), batch_size, num_workers=8)
+    training_loop(model, train_dataloader, val_dataloader, optimizer, device, scheduler, num_branches, num_classes, loss_fn_CE, loss_fn_dice_CDS0, loss_fn_dice_CDS1, loss_fn_dice_CDS2,
                   loss_fn_dice_intron, coefficient, early_stopping, epoch, training_phase=2)
