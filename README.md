@@ -1,6 +1,6 @@
 # ANNEVO (v2.2.3)
 ## Recent Updates
-1. **Released a new model for the `Magnoliopsida` clade (flowering plants, Tax ID: 3398), covering both `monocots` and `dicots`.** Preliminary evaluation (using gffcompare) on two representative species are provided below. See `docs/boundary_aware_model.md` for details and usage instructions.
+1. **Released a new model for the `Magnoliopsida` clade (flowering plants, Tax ID: 3398), covering both `monocots` and `dicots`.** Preliminary evaluation (using gffcompare) on two representative species are provided below. See [boundary_aware_model](docs/boundary_aware_model.md) for details and usage instructions.
 2. **Optimized the parallel decoding logic for large genomes and multithreaded settings. This improvement applies to all model.** In our evaluation, decoding time on the human genome was reduced from ~2800 s to ~1900 s (~30%). 
 3. **Improved the logic for applying `min_intron_length`**, so that for most gene segments it no longer introduces extra decoding time.
 
