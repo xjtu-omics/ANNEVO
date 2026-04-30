@@ -14,7 +14,7 @@ def main():
     parser.add_argument("--boundary-aware", action="store_true",
                         help="Use boundary-aware decoding via decode_gene_structure2.")
 
-    parser.add_argument("--min_intron_length", type=int, default=1,
+    parser.add_argument("--min_intron_length", type=int, default=20,
                         help="Minimum allowed length for CDS-associated introns during decoding.")
     args = parser.parse_args()
     AVE_THRESHOLD = 0.1

@@ -13,7 +13,6 @@ def main():
     parser.add_argument("--threads", type=int, default=8, help="The number of CPU cores used simultaneously.")
     parser.add_argument("--window_size", type=int, default=30720, help="Core region.")
     parser.add_argument("--flank_length", type=int, default=5120, help="Flanking region")
-    parser.add_argument("--keep_intergenic_sample", type=int, default=0, help="")
     args = parser.parse_args()
 
     output_dir = os.path.dirname(args.output_file)
@@ -21,7 +20,7 @@ def main():
         os.makedirs(output_dir)
 
     start_time = time.time()
-    generate_h5_file(args.genome, args.annotation, args.output_file, args.threads, args.window_size, args.flank_length, args.keep_intergenic_sample)
+    generate_h5_file(args.genome, args.annotation, args.output_file, args.threads, args.window_size, args.flank_length)
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"Processing genome took {elapsed_time} seconds")

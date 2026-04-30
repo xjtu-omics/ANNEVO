@@ -72,7 +72,7 @@ def define_coding_exon(arr, start, end, phase, strand):
     return arr
 
 
-def parse_files(seq_information, window_size, flank_length, keep_intergenic_sample):
+def parse_files(seq_information, window_size, flank_length):
     """
     The label of each position represents the class of every position. The definition of label are as follows:
     0: intergenic
@@ -153,7 +153,7 @@ def parse_files(seq_information, window_size, flank_length, keep_intergenic_samp
                                 category_annotation_reverse_rec = define_coding_exon(category_annotation_reverse_rec, sub_feature.location.start, sub_feature.location.end, phase, strand=-1)
                         mask_reverse_rec = error_checking_reverse(max_mRNA, mask_reverse_rec, sequence)
 
-    windows, windows_intergenic = split_sequence(sequence, category_annotation_forward_rec, category_annotation_reverse_rec, mask_forward_rec, mask_reverse_rec, window_size, flank_length, keep_intergenic_sample)
+    windows, windows_intergenic = split_sequence(sequence, category_annotation_forward_rec, category_annotation_reverse_rec, mask_forward_rec, mask_reverse_rec, window_size, flank_length)
 
     return seq_id, windows, windows_intergenic
 
@@ -164,7 +164,7 @@ def reverse_complement(dna_sequence):
     return ''.join(complement[nucleotide] for nucleotide in reversed(dna_sequence))
 
 
-def split_sequence(sequence, category_annotation_forward_rec, category_annotation_reverse_rec, mask_forward_rec, mask_reverse_rec, window_size, flank_length, keep_intergenic_sample):
+def split_sequence(sequence, category_annotation_forward_rec, category_annotation_reverse_rec, mask_forward_rec, mask_reverse_rec, window_size, flank_length):
     length = len(sequence)
     sequence_forward = sequence
     windows = []
@@ -254,7 +254,7 @@ def write_h5(output_file, split_data):
             # grp.create_dataset("masks", data=masks)
 
 
-def generate_h5_file(genome, annotation, output_file, threads, window_size, flank_length, keep_intergenic_sample):
+def generate_h5_file(genome, annotation, output_file, threads, window_size, flank_length):
     path_name = os.path.dirname(output_file)
     if path_name:
         os.makedirs(path_name, exist_ok=True)
@@ -275,11 +275,11 @@ def generate_h5_file(genome, annotation, output_file, threads, window_size, flan
             else:
                 seq_information_total.append((rec.id, sequence, features))
 
-    results = [parse_files(seq_information, window_size, flank_length, keep_intergenic_sample)
+    results = [parse_files(seq_information, window_size, flank_length)
                for seq_information in seq_information_total_exceed_max]
 
     with ProcessPoolExecutor(max_workers=threads) as executor:
-        future_to_segment = {executor.submit(parse_files, seq_information, window_size, flank_length, keep_intergenic_sample): seq_information for seq_information in seq_information_total}
+        future_to_segment = {executor.submit(parse_files, seq_information, window_size, flank_length): seq_information for seq_information in seq_information_total}
         for future in as_completed(future_to_segment):
             result = future.result()
             results.append(result)
