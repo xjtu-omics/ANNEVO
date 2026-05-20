@@ -68,8 +68,6 @@ Note: `*`indicates species mentioned by Helixer as part of its validation set. H
 | Actinopteri | Danio_rerio | 93.8 | 92.6 | 75.7 | 73.7 | 96.5 |  |
 | Actinopteri | Oryzias_latipes | 94.2 | 92.3 | 73.5 | 71.0 | 96.2 |  |
 |  | Average | 91.4 | 90.2 | 76.3 | 74.3 | 97.8 |  |
-|
-
 
 For all animal clades in ANNEVO, we used `--overlap_pred`, which slightly improved performance. We also provide the performance differences with and without this parameter for comparison: [Overlap_pred](overlap_pred.md)
 
