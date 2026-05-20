@@ -1,39 +1,76 @@
 import argparse
-from src.predict_nucleotide import nucleotide_prediction
+from src.predict_nucleotide import base_pred
 import time
 import os
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Predict per-nucleotide probabilities from a genome sequence.")
-    parser.add_argument('--genome', required=True, help='Input genome FASTA file.')
-    parser.add_argument('--model_path', required=True,
-                        help='Path to the trained prediction model.')
-    parser.add_argument('--genome_size_threshold', type=int, default=100 * 1024 * 1024,
-                        help='Maximum cumulative contig size processed in one prediction batch. '
-                             'When the cumulative size exceeds this threshold, prediction runs on the current chunk.')
-    parser.add_argument('--model_prediction_path', type=str, default='model_prediction',
-                        help='Output HDF5 path for model prediction results.')
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for model inference.')
-    parser.add_argument('--num_workers', type=int, default=8, help='Number of worker processes for loading prediction data.')
+    length_config = {
+        'Mammalia': [102400, 12800, 32],
+        'Insecta': [102400, 12800, 32],
+        'Aves': [102400, 12800, 32],
+        'Actinopteri': [102400, 12800, 32],
+        'Magnoliopsida': [30720, 5120, 32],
+        'Fungi': [30720, 5120, 32],
+    }
 
-    parser.add_argument('--window_size', type=int, default=30720,
-                        help='Number of bases in each prediction window. This should match the value used during preprocessing and decoding.')
-    parser.add_argument('--flank_length', type=int, default=5120,
-                        help='Length of flanking sequence on each side of a prediction window. This should match the value used during preprocessing and decoding.')
-    parser.add_argument('--num_classes', type=int, default=5, help='Number of output classes predicted by the model.')
+    parser = argparse.ArgumentParser(description="Predict nucleotide information.")
+    parser.add_argument('-g', '--genome', required=True, help='The genome to be predicted.')
+    parser.add_argument('-m', '--model_path', required=True,
+                        help='Specify the path to the prediction model.')
+    parser.add_argument('-p', '--pred_path', required=True,
+                        help='The storage path of the prediction results.')
+    parser.add_argument('-l', "--lineage", required=True, choices=length_config.keys(),
+                        help="Use lineage-specific config for seq_len")
+
+    parser.add_argument('-s', '--genome_size_threshold', type=int, default=1000,
+                        help='Threshold for the total genome size per operation (M). '
+                             'By default, whenever the cumulative size of contigs exceeds this threshold (e.g., 100 Mb), a prediction or decoding operation will be performed.')
+    parser.add_argument('--batch_size', type=int, default=64, help='The number of samples in a batch.')
+    parser.add_argument('--num_workers', type=int, default=8, help='The number of CPU cores to load data in parallel')
+    parser.add_argument('--overlap_pred', action='store_true',
+                        help='Predict overlapping windows and average probabilities in overlapping output regions.')
     args = parser.parse_args()
 
-    if os.path.exists(args.model_prediction_path):
-        raise FileExistsError(f"The file '{args.model_prediction_path}' already exists. Please delete it before running the prediction.")
-
-    output_dir = os.path.dirname(args.model_prediction_path)
+    output_dir = os.path.dirname(args.pred_path)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    length_config = {
+        'Mammalia': [102400, 12800, 32],
+        'Insecta': [102400, 12800, 32],
+        'Aves': [102400, 12800, 32],
+        'Actinopteri': [102400, 12800, 32],
+        'Magnoliopsida': [30720, 5120, 32],
+        'Fungi': [30720, 5120, 32],
+    }
+
+    window_size, flank_length, local_pattern_size = length_config[args.lineage]
+    total_len = window_size + 2 * flank_length
+    if total_len % local_pattern_size != 0:
+        raise ValueError(
+            f"Lineage window config is invalid: window_size={window_size}, flank_length={flank_length}, "
+            f"local_pattern_size={local_pattern_size}, total_len={total_len}. "
+        )
+
+    print(
+        f"Prediction window/flank=({window_size}, {flank_length}), overlap_pred={args.overlap_pred}"
+    )
+
     start_time = time.time()
-    nucleotide_prediction(args.genome, args.model_path, args.genome_size_threshold, args.num_workers, args.model_prediction_path,
-                          args.batch_size, args.window_size, args.flank_length, args.num_classes)
+    base_pred(
+        args.genome,
+        args.model_path,
+        args.genome_size_threshold,
+        args.pred_path,
+        args.num_workers,
+        args.batch_size,
+        window_size,
+        flank_length,
+        local_pattern_size,
+        args.lineage,
+        overlap_pred=args.overlap_pred,
+    )
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"The model prediction took {elapsed_time:.1f} seconds")

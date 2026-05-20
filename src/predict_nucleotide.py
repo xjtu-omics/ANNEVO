@@ -1,19 +1,15 @@
-from src.utils import model_construction, model_load_weights
-from Bio import SeqIO
+import torch
 import h5py
 from tqdm import tqdm
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-import torch
+from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 import gc
+from datamodule.data_load import sequence_encode
+import numpy as np
 import time
-import torch.nn as nn
-
-
-def rev_complement(dna_sequence):
-    complement_map = str.maketrans('ATGCatgcNXnx', 'TACGtacgNXnx')
-    return dna_sequence.translate(complement_map)[::-1]
+from src.utils import model_construction_for_pred, model_load_weights
+from Bio import SeqIO
+import re
 
 
 class GenomeDataset(Dataset):
@@ -26,61 +22,125 @@ class GenomeDataset(Dataset):
     def __getitem__(self, idx):
         window_seq = self.data[idx]
         one_hot_seq = sequence_encode(window_seq)
-        return torch.tensor(one_hot_seq, dtype=torch.float)
+        one_hot_seq = torch.tensor(one_hot_seq, dtype=torch.float)
+        return one_hot_seq
 
 
-def sequence_encode(seq):
-    mapping = {'A': [1, 0, 0, 0],
-               'C': [0, 1, 0, 0],
-               'G': [0, 0, 1, 0],
-               'T': [0, 0, 0, 1],
-               'N': [0.25, 0.25, 0.25, 0.25],
-               'M': [0.25, 0.25, 0.25, 0.25],
-               'W': [0.25, 0.25, 0.25, 0.25],
-               'R': [0.25, 0.25, 0.25, 0.25],
-               'Y': [0.25, 0.25, 0.25, 0.25],
-               'K': [0.25, 0.25, 0.25, 0.25],
-               'B': [0.25, 0.25, 0.25, 0.25],
-               'S': [0.25, 0.25, 0.25, 0.25],
-               'D': [0.25, 0.25, 0.25, 0.25],
-               'H': [0.25, 0.25, 0.25, 0.25],
-               'V': [0.25, 0.25, 0.25, 0.25],
-               'X': [0, 0, 0, 0]}
-    return [mapping[s] for s in seq]
+def rev_complement(dna_sequence):
+    complement_map = str.maketrans('ATGCatgcNXnx', 'TACGtacgNXnx')
+    return dna_sequence.translate(complement_map)[::-1]
+
+
+def build_window_starts(length, step_size):
+    if length <= 0:
+        return [0]
+    return list(range(0, length, step_size))
+
+
+def windows_split(length, sequence_fwd, window_size, flank_length, step_size, count):
+    window_starts = build_window_starts(length, step_size)
+    pad_front = flank_length
+    total_len_needed = window_starts[-1] + window_size + 2 * flank_length
+    pad_behind = total_len_needed - (length + flank_length)
+
+    sequence_fwd = 'X' * pad_front + sequence_fwd + 'X' * pad_behind
+
+    windows_reverse_disorder = []
+    windows_forward_rec = []
+
+    for output_start in window_starts:
+        start = output_start + flank_length
+        end = start + window_size
+
+        window_seq_fwd = sequence_fwd[start - flank_length:end + flank_length].upper()
+        window_seq_rev = rev_complement(window_seq_fwd)
+
+        windows_forward_rec.append(window_seq_fwd)
+        windows_reverse_disorder.append(window_seq_rev)
+        count += 1
+    return count, windows_forward_rec, windows_reverse_disorder, window_starts
 
 
 def predict_probability(model, windows, device, num_classes, batch_size, num_workers):
-    data = GenomeDataset(windows)
-    dataloader = DataLoader(data, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    accumulated_outputs_base = []
+    dataset = GenomeDataset(windows)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, persistent_workers=True, num_workers=num_workers)
+    all_outputs = None
+    write_start = 0
     with torch.no_grad():
-        for data in tqdm(dataloader):
-            seqs = data.to(device)
-            outputs, _, _ = model(seqs)
-            outputs = outputs.reshape(-1, num_classes)
-            # if device.type == 'cpu':
-            #     outputs = outputs.reshape(-1, num_classes)
-            # else:
-            #     outputs = outputs.view(-1, num_classes)
+        for batch_data in tqdm(dataloader):
+            seqs = batch_data
+            seqs = seqs.to(device).float()  # Shape of [batch_size, sequence_length, num_classes]
+            outputs = model(seqs)[0]
 
-            accumulated_outputs_base.append(outputs.cpu())
-    all_outputs = torch.cat(accumulated_outputs_base, dim=0)
-    all_outputs = F.softmax(all_outputs, dim=-1).numpy().astype('float16')
-
+            outputs = F.softmax(outputs, dim=-1)
+            outputs_np = outputs.to(torch.float16).cpu().numpy()
+            if all_outputs is None:
+                all_outputs = np.empty((len(dataset), outputs_np.shape[1], outputs_np.shape[2]), dtype=np.float16)
+            batch_size_actual = outputs_np.shape[0]
+            all_outputs[write_start:write_start + batch_size_actual] = outputs_np
+            write_start += batch_size_actual
     return all_outputs
 
 
+def merge_window_predictions(window_predictions, window_starts, length, overlap_pred=False, from_tail=False):
+    if len(window_starts) == 0:
+        return np.zeros((length, window_predictions.shape[-1]), dtype=np.float16)
+
+    window_size = window_predictions.shape[1]
+    num_classes = window_predictions.shape[2]
+    if not overlap_pred:
+        flattened = window_predictions.reshape(-1, num_classes)
+        if from_tail:
+            return flattened[-length:]
+        return flattened[:length]
+
+    if len(window_predictions) == 1:
+        flattened = window_predictions.reshape(-1, num_classes)
+        if from_tail:
+            return flattened[-length:]
+        return flattened[:length]
+
+    step_size = window_size // 2
+    left = window_predictions[:, :step_size]
+    right = window_predictions[:, step_size:]
+    merged = np.empty(((len(window_predictions) + 1) * step_size, num_classes), dtype=np.float16)
+    merged[:step_size] = left[0]
+    merged_middle = merged[step_size:-step_size].reshape(len(window_predictions) - 1, step_size, num_classes)
+    np.add(right[:-1], left[1:], out=merged_middle)
+    merged_middle *= np.float16(0.5)
+    merged[-step_size:] = right[-1]
+    if from_tail:
+        return merged[-length:]
+    return merged[:length]
+
+
 def pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
-              seq_id_chunk, seq_length_chunk, offset, window_size):
+              seq_id_chunk, seq_length_chunk, offset, window_starts_chunk, step_size, overlap_pred):
     predictions_forward = predict_probability(model, windows_forward, device, num_classes, batch_size, num_workers)
     predictions_reverse = predict_probability(model, windows_reverse, device, num_classes, batch_size, num_workers)
+    if overlap_pred:
+        print("Merging window predictions")
     genome_predictions = {}
     for i, seq_id in enumerate(seq_id_chunk):
         length = seq_length_chunk[i]
-        range_start = offset[i] * window_size
-        range_end = offset[i + 1] * window_size
-        predictions_forward_rec = predictions_forward[range_start:range_end][:length]
-        predictions_reverse_rec = predictions_reverse[range_start:range_end][-length:]
+        range_start = offset[i]
+        range_end = offset[i + 1]
+        forward_window_starts = window_starts_chunk[i]
+        reverse_window_starts = [j * step_size for j in range(range_end - range_start)]
+        predictions_forward_rec = merge_window_predictions(
+            predictions_forward[range_start:range_end],
+            forward_window_starts,
+            length,
+            overlap_pred=overlap_pred,
+            from_tail=False,
+        )
+        predictions_reverse_rec = merge_window_predictions(
+            predictions_reverse[range_start:range_end],
+            reverse_window_starts,
+            length,
+            overlap_pred=overlap_pred,
+            from_tail=True,
+        )
         genome_predictions[seq_id] = [predictions_forward_rec, predictions_reverse_rec]
 
     return genome_predictions
@@ -99,59 +159,85 @@ def save_prediction_result(genome_predictions, prediction_path):
     return end_time - start_time
 
 
-def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers, prediction_path, batch_size, window_size, flank_length, num_classes):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    with open(genome) as fna:
-        genome_seq = SeqIO.to_dict(SeqIO.parse(fna, "fasta"))
+def process_input(genome):
+    print('---------------------------------------Processing genome information---------------------------------------')
+    start_time = time.time()
+    genome_seq = {}
+    with open(genome) as genome_data:
+        genome_seqIO = SeqIO.to_dict(SeqIO.parse(genome_data, "fasta"))
+    for seq_id in genome_seqIO:
+        sequence = str(genome_seqIO[seq_id].seq).upper()
+        sequence = re.sub(r'[^ATCG]', 'N', sequence)
+        genome_seq[seq_id] = sequence
 
-    model = model_construction(device, window_size, flank_length, num_classes)
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Processing genome information took {elapsed_time:.1f} seconds")
+
+    return genome_seq
+
+
+def base_pred(genome, model_path, genome_size_threshold, prediction_path, num_workers, batch_size,
+              window_size, flank_length, local_pattern_size, lineage, num_classes=15, overlap_pred=False):
+    print('Model loading')
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = model_construction_for_pred(
+        device,
+        window_size,
+        flank_length,
+        local_pattern_size,
+        num_classes=num_classes,
+        lineage=lineage,
+    )
     model = model_load_weights(model_path, model, device)
     model.eval()
-    chunk_num = 1
-
+    print('Model loading complete')
+    if overlap_pred and window_size % 2 != 0:
+        raise ValueError(f"overlap_pred requires an even window_size, got window_size={window_size}")
+    step_size = window_size // 2 if overlap_pred else window_size
+    if step_size <= 0:
+        raise ValueError(f"Invalid prediction step_size={step_size}")
+    print(f"Prediction step_size={step_size}, overlap_pred={overlap_pred}")
     file_saving_time = 0
-
     windows_forward = []
     windows_reverse = []
     offset = [0]
+    window_starts_chunk = []
     count = 0
     cumulative_size = 0
     seq_id_chunk = []
     seq_length_chunk = []
-    for chromosome in genome_seq:
-        chromosome_seq_record = genome_seq[chromosome]
-        sequence_forward = str(chromosome_seq_record.seq).upper()
+    chunk_num = 1
+    genome_seq = process_input(genome)
+    for seq_id in genome_seq:
+        # if seq_id != 'NC_000001.11':
+        #     continue
+        sequence_forward = genome_seq[seq_id]
+
         length = len(sequence_forward)
         cumulative_size = cumulative_size + length
-        windows_reverse_disorder = []
-        seq_id_chunk.append(chromosome)
+        seq_id_chunk.append(seq_id)
         seq_length_chunk.append(length)
-        for start in range(0, length, window_size):
-            end = start + window_size
-            if start - flank_length < 0:
-                if end + flank_length <= length:
-                    pad_before = 'X' * (flank_length - start)
-                    window_seq_forward = pad_before + sequence_forward[0:end + flank_length]
-                else:
-                    pad_before = 'X' * (flank_length - start)
-                    pad_after = 'X' * (end + flank_length - length)
-                    window_seq_forward = pad_before + sequence_forward[0:length] + pad_after
-            elif end + flank_length > length:
-                pad_after = 'X' * (end + flank_length - length)
-                window_seq_forward = sequence_forward[start - flank_length:length] + pad_after
-            else:
-                window_seq_forward = sequence_forward[start - flank_length:end + flank_length]
-            windows_forward.append(window_seq_forward)
-            windows_reverse_disorder.append(rev_complement(window_seq_forward))
-            count += 1
-        windows_reverse += windows_reverse_disorder[::-1]
+
+        count, windows_forward_rec, windows_reverse_disorder, window_starts = windows_split(
+            length,
+            sequence_forward,
+            window_size,
+            flank_length,
+            step_size,
+            count,
+        )
+        for window in windows_forward_rec:
+            windows_forward.append(window)
+        windows_reverse += windows_reverse_disorder[::-1].copy()
+        window_starts_chunk.append(window_starts)
         offset.append(count)
 
-        if cumulative_size > genome_size_threshold:
+        if cumulative_size > genome_size_threshold * 1e6:
             print(f'---------------------------------------Prediction on chunk {chunk_num}---------------------------------------')
             chunk_num += 1
             genome_predictions = pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
-                                           seq_id_chunk, seq_length_chunk, offset, window_size)
+                                           seq_id_chunk, seq_length_chunk, offset, window_starts_chunk, step_size, overlap_pred)
             runtime = save_prediction_result(genome_predictions, prediction_path)
             file_saving_time += runtime
 
@@ -159,6 +245,7 @@ def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers
             windows_forward = []
             windows_reverse = []
             offset = [0]
+            window_starts_chunk = []
             count = 0
             cumulative_size = 0
             seq_id_chunk = []
@@ -167,7 +254,7 @@ def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers
         print(f'---------------------------------------Prediction on chunk {chunk_num}---------------------------------------')
         chunk_num += 1
         genome_predictions = pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
-                                       seq_id_chunk, seq_length_chunk, offset, window_size)
+                                       seq_id_chunk, seq_length_chunk, offset, window_starts_chunk, step_size, overlap_pred)
         runtime = save_prediction_result(genome_predictions, prediction_path)
         file_saving_time += runtime
 
@@ -175,10 +262,10 @@ def nucleotide_prediction(genome, model_path, genome_size_threshold, num_workers
 
     del windows_forward
     del windows_reverse
+    del window_starts_chunk
     del seq_id_chunk
     del seq_length_chunk
     del genome_predictions
     del model
-    del genome_seq
     torch.cuda.empty_cache()
     gc.collect()

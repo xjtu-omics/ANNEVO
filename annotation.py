@@ -9,29 +9,28 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(description="Run nucleotide prediction and gene structure decoding in one step.")
-    parser.add_argument('--genome', required=True, help='Input genome FASTA file.')
-    parser.add_argument('--model_path', required=True,
+    parser.add_argument('-g', '--genome', required=True, help='Input genome FASTA file.')
+    parser.add_argument('-m', '--model_path', required=True,
                         help='Path to the trained prediction model.')
+    parser.add_argument('-l', "--lineage", required=True, help="Use lineage-specific config for seq_len.")
 
-    parser.add_argument("--output", required=True, help="Output GFF3 file path.")
-    parser.add_argument("--threads", type=int, default=48, help="Number of CPU cores used for decoding.")
-    parser.add_argument('--genome_size_threshold', type=int, default=100 * 1024 * 1024,
-                        help='Maximum cumulative contig size processed in one prediction batch. '
-                             'When the cumulative size exceeds this threshold, prediction runs on the current chunk.')
+    parser.add_argument('-o', "--output", required=True, help="Output GFF3 file path.")
+    parser.add_argument("-t", "--threads", type=int, default=48, help="Number of CPU cores used for decoding.")
+    parser.add_argument("--region_threads", type=int, default=4,
+                        help="Number of processes for loading predictions and detecting potential genes.")
+    parser.add_argument('-s', '--genome_size_threshold', type=int, default=1000,
+                        help='Threshold for the total genome size per operation (M).')
     parser.add_argument("--tmp_path", help="Directory for temporary intermediate files.")
 
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for model inference.')
+    parser.add_argument('--batch_size', type=int, default=64, help='Batch size for model inference.')
     parser.add_argument('--num_workers', type=int, default=8, help='Number of worker processes for loading prediction data.')
-    parser.add_argument('--window_size', type=int, default=30720,
-                        help='Number of bases in each prediction window. This should match the value used during preprocessing and decoding.')
-    parser.add_argument('--flank_length', type=int, default=5120,
-                        help='Length of flanking sequence on each side of a prediction window. This should match the value used during preprocessing and decoding.')
-    parser.add_argument('--num_classes', type=int, default=5, help='Number of output classes predicted by the model.')
-    parser.add_argument("--min_intron_length", type=int, default=1,
-                        help="Minimum allowed length for CDS-associated introns during decoding.")
-    parser.add_argument("--show_log", action="store_true", help="Show progress bars during decoding.")
-    parser.add_argument("--boundary-aware", action="store_true",
-                        help="Use boundary-aware decoding via decode_gene_structure2.")
+    parser.add_argument('--overlap_pred', action='store_true',
+                        help='Predict overlapping windows and average probabilities in overlapping output regions.')
+    parser.add_argument("--min_intron_length", type=int, default=20,
+                        help="Minimum intron length of CDS-associated intron groups.")
+    parser.add_argument("--min_prot_length", type=int, default=100,
+                        help="Predicted proteins shorter than this length are filtered with a higher confidence threshold.")
+    parser.add_argument("--show_log", action="store_true", help="Show decoding progress bars.")
     args = parser.parse_args()
 
     output_dir = os.path.dirname(args.output)
@@ -54,14 +53,14 @@ def main():
         prediction_script,
         "--genome", args.genome,
         "--model_path", args.model_path,
+        "--lineage", args.lineage,
         "--genome_size_threshold", str(args.genome_size_threshold),
-        "--model_prediction_path", model_prediction_path,
+        "--pred_path", model_prediction_path,
         "--batch_size", str(args.batch_size),
         "--num_workers", str(args.num_workers),
-        "--window_size", str(args.window_size),
-        "--flank_length", str(args.flank_length),
-        "--num_classes", str(args.num_classes),
     ]
+    if args.overlap_pred:
+        prediction_cmd.append("--overlap_pred")
     subprocess.run(prediction_cmd, check=True)
 
     decoding_cmd = [
@@ -71,12 +70,12 @@ def main():
         "--model_prediction_path", model_prediction_path,
         "--output", args.output,
         "--threads", str(args.threads),
+        "--region_threads", str(args.region_threads),
         "--min_intron_length", str(args.min_intron_length),
+        "--min_prot_length", str(args.min_prot_length),
     ]
     if args.show_log:
         decoding_cmd.append("--show_log")
-    if args.boundary_aware:
-        decoding_cmd.append("--boundary-aware")
     subprocess.run(decoding_cmd, check=True)
 
     end_time = time.time()

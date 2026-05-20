@@ -1,23 +1,48 @@
-# ANNEVO (v2.2.3)
+# ANNEVO (v2.3.0)
 ## Recent Updates
-1. **Released a new model for the `Magnoliopsida` clade (flowering plants, Tax ID: 3398), covering both `monocots` and `dicots`.** Preliminary evaluation (using gffcompare) on two representative species are provided below. See [boundary_aware_model](docs/boundary_aware_model.md) for details and usage instructions.
-2. **Optimized the parallel decoding logic for large genomes and multithreaded settings. This improvement applies to all model.** In our evaluation, decoding time on the human genome was reduced from ~2800 s to ~1900 s (~30%). 
-3. **Improved the logic for applying `min_intron_length`**, so that for most gene segments it no longer introduces extra decoding time.
+**New models have been updated for five major clades.** This update integrates all beneficial explorations made after the version described in the paper, including a new data processing workflow, new training strategies, minor architectural adjustments (position embedding), longer-context training, decoding algorithm and optimizations for practical resource usage and runtime. 
 
-**Evaluations were performed using the latest available version of each corresponding method as of April 29, 2026.**
+For plants, we continue to use the latest model from v2.2.3, because plants do not require longer-context training. Other optimizations had already been incorporated when that model was released, so we only further optimized the decoding algorithm. 
 
-| Species | Model | Exon-recall | Exon-precision | Locus-recall | Locus-precision |
-|---|---|---:|---:|---:|---:|
-| A.thaliana | Helixer: land_plant_v0.3_a_0080.h5 | 89.5 | 88.1 | 75.1 | 75.6 |
-| A.thaliana | Tiberius: angiosperms | 89.6 | 94 | 80.5 | 88.2 |
-| A.thaliana | ANNEVO: Magnoliopsida | 89.6 | 94.2 | 81.3 | 89.3 |
-|  |  |  |  |  |  |
-| O.sativa | Helixer: land_plant_v0.3_a_0080.h5 | 88.9 | 71.4 | 68.7 | 53.1 |
-| O.sativa | Tiberius: angiosperms | 87.4 | 88.2 | 74.6 | 71.3 |
-| O.sativa | ANNEVO: Magnoliopsida | 90.5 | 89.6 | 80.1 | 78.5 |
+Compared with the version described in the paper, some of the most noticeable changes in the latest version include:
+1. The BUSCO score for human genome annotation increased from 95.7 to 98.3, using the same Mammalia_odb10 database as in the paper. 
+2. On the same machine configuration described in the paper, the annotation time for the human genome decreased from 82 minutes to 31 minutes. 
+3. The maximum predictable gene length in human increased from 621 kb to 1,212 kb (*CSMD3*). 
+4. The minimum predictable gene length in human is 96 bp (*SLN*).
 
+## Quick version check
+In the current version of ANNEVO, the BUSCO score for the **RefSeq human genome** annotation is shown as follows. In other performance evaluations of ANNEVO, this value can be used to check whether the latest version of ANNEVO was used.
+
+| BUSCO_datasets | Value |
+|----------------|------:|
+| Mammalia_odb10 |  98.3 |
+| Mammalia_odb12 |  98.2 |
+
+
+## Performance
+**Evaluations were performed using the latest available version of each corresponding method as of May 18, 2026.** See [Notes](docs/notes.md) for details.
+### Annotation accuracy
+Annotation performance was evaluated on 12 model species across six clades, with two species selected from each clade. The average performance is shown below. The evaluation was performed using gffcompare ([Notes](docs/notes.md)). Detailed metrics for each species and the BUSCO databases used are available in [Performance](docs/performance.md).
+
+| Method | Exon recall | Exon precision | Locus recall | Locus precision | BUSCO |
+|---|------------:|---------------:|-------------:|----------------:|------:|
+| ANNEVO |        91.4 |           90.2 |         76.3 |            74.3 |  97.8 |
+| Tiberius |        89.8 |           88.7 |         74.0 |            68.8 |  96.3 |
+| Helixer |        86.1 |           75.3 |         50.2 |            47.0 |  92.5 |
+
+### Speed and GPU requirement
+**Evaluations on human genome.** See [Annotation time and resource usage](docs/performance.md) for details.
+
+| Method | Time (single RTX4090, minutes) | Time (CPU only, minutes) |  GPU memory (GB, batch size=8) |
+|---|-------------------------------:|-------------------------:|-------------------------------:|
+| ANNEVO |                             52 |                 7.4 * 60 |                            3.8 |
+| Tiberius |                            141 |                 8.8 * 60 |                           22.5 |
+| Helixer |                            956 |                  23 * 60 |                            8.6 |
+
+As a quick comparison on a small genome, using the same single RTX 4090, ANNEVO took 1.9 minutes on Arabidopsis thaliana, compared with 5.7 minutes for Tiberius and 13.9 minutes for Helixer.
 
 ## Update history
+#### 2026-05 (v2.3.0): Covering updates to the model, data, training strategy, and engineering implementation, with substantially improved performance and speed.
 #### 2026-04 (v2.2.3): Added a new plant model and improved over 30% decoding speed.
 #### 2026-03 (v2.2.2): Optimized the search logic for candidate intervals during decoding.
 #### 2026-01 (v2.2.1): Released two new models for Insecta and Mammalia, trained with the new data processing and training pipeline.
@@ -72,39 +97,49 @@ python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda
 ```
 
 # Usage
-Note: Now you can use `--show_log` to view the decoding progress.
+ANNEVO provides both one-step execution and step-by-step execution.
 ## One-step Execution
 ```bash
-python annotation.py --genome path_to_genome --model_path path_to_model --output path_to_gff --threads 48
+python annotation.py -g path_to_genome -m path_to_model -l lineage -o path_to_gff --batch_size 32 -t 48 --show_log
 ```
-We strongly recommend utilizing more CPU cores by adjusting threads when sufficient computational resources are available, as this will significantly accelerate the computation. If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.  
-Note: ANNEVO automatically supports use in a multi-GPU environment. If GPU resources are insufficient, you can adjust it by `--batch_size`. For example, adding the parameter `--batch_size 8` only requires <2G GPU memory.
 
+## Parameter Description and Additional Parameters
+
+| Parameter | Description |
+|---|---|
+| `-g` | Genome file to be annotated. |
+| `-m` | Full path to the model file. |
+| `-l` | Lineage of the species to be predicted. This is used to determine the sequence segment length during inference. Supported lineages are `Mammalia`, `Insecta`, `Aves`, `Actinopteri`, `Magnoliopsida`, and `Fungi`. |
+| `-o` | Output GFF annotation file. |
+| `-p` | Path to the output model prediction probability file. |
+| `-t` | Number of CPU cores used for decoding. |
+| `-s` | Chunk size used for each prediction run. This helps avoid repeatedly initializing PyTorch when processing highly fragmented genomes. This value affects peak memory usage. The default value is `1000`, representing 1000 Mb. |
+| `--show_log` | Show the decoding progress. |
+| `--overlap_pred` | Run overlapping-window prediction. For branches with relatively long genes, such as Mammalia and Actinopteri, we strongly recommend adding `--overlap_pred`, which can improve prediction performance to some extent. See [overlap_pred](docs/overlap_pred.md) for details. |
+
+If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.
 ## Step-by-step Execution
-Typically, deep learning is conducted in environments equipped with GPU resources, where CPU resources are often limited. However, decoding gene structures usually requires substantial CPU resources. To address this, we provide a segmented execution approach, allowing users to flexibly switch between computational nodes/environments with different resources.  
-Stage 1: Predicting three types of information for each nucleotide (recommended to be performed on environments with abundant GPU resources).  
-Stage 2: Decoding the three types of information into biologically valid gene structures (recommended to be performed on environments with abundant CPU resources).
+Stage 1: Predict per-nucleotide probabilities from the genome sequence (recommended to be performed on environments with abundant **GPU** resources).  
+Stage 2: Decode the model prediction into biologically valid gene structures (recommended to be performed on environments with abundant **CPU** resources).
 ```bash
 # Nucleotide prediction
-python prediction.py --genome path_to_genome --model_path path_to_model --model_prediction_path path_to_save_predction
+python prediction.py -g path_to_genome -m path_to_model -p path_to_prediction_h5 -l lineage --batch_size 32
 
 # Gene structure decoding
-python decoding.py --genome path_to_genome --model_prediction_path path_to_save_predction --output path_to_gff --threads 48 
+python decoding.py -g path_to_genome -p path_to_prediction_h5 -o path_to_gff -t 48 --show_log
 ```
+The `-p` parameter specifies the path for the output model prediction probability file.
 ## Run demo data
-The demo data located at './example'.  
-`Arabidopsis_chr4_genome.fna`: Genome sequence of chromosome 4 of Arabidopsis thaliana.  
-`Arabidopsis_chr4_annotation.gff`: RefSeq annotation of chromosome 4 of Arabidopsis thaliana.
+The demo data located at './example'.
+`Arabidopsis_chr4_genome.fna`: Genome sequence of chromosome 4 of Arabidopsis thaliana.
 ```bash
 # One-step Execution
-python annotation.py --genome example/Arabidopsis_chr4_genome.fna --model_path ANNEVO_model/ANNEVO_Embryophyta.pt --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48
+python annotation.py -g example/Arabidopsis_chr4_genome.fna -m saved_model/ANNEVO_Magnoliopsida_seq.pt -l Magnoliopsida -o gff_result/Arabidopsis_chr4_annotation.gff -t 48 --show_log
 
 # Step-by-step Execution
-python prediction.py --genome example/Arabidopsis_chr4_genome.fna --model_path ANNEVO_model/ANNEVO_Embryophyta.pt --model_prediction_path prediction_result/Arabidopsis_chr4/model_prediction.h5
-python decoding.py --genome example/Arabidopsis_chr4_genome.fna --model_prediction_path prediction_result/Arabidopsis_chr4/model_prediction.h5 --output gff_result/Arabidopsis_chr4_annotation.gff --threads 48
+python prediction.py -g example/Arabidopsis_chr4_genome.fna -m saved_model/ANNEVO_Magnoliopsida_seq.pt -p prediction_result/Arabidopsis_chr4/model_prediction.h5 -l Magnoliopsida
+python decoding.py -g example/Arabidopsis_chr4_genome.fna -p prediction_result/Arabidopsis_chr4/model_prediction.h5 -o gff_result/Arabidopsis_chr4_annotation.gff -t 48 --show_log
 ```
-# Re-train or Fine-tune ANNEVO
-See [Re-train_and_fine-tune](docs/Re-train_and_fine-tune.md) for details and usage instructions.
 
 # Contact
 If you have any questions, please feel free to contact: pengyuzhang@stu.xjtu.edu.cn
