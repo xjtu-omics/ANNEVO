@@ -105,17 +105,16 @@ python annotation.py -g path_to_genome -m path_to_model -l lineage -o path_to_gf
 
 ## Parameter Description and Additional Parameters
 
-| Parameter | Description |
-|---|---|
-| `-g` | Genome file to be annotated. |
-| `-m` | Full path to the model file. |
-| `-l` | Lineage of the species to be predicted. This is used to determine the sequence segment length during inference. Supported lineages are `Mammalia`, `Insecta`, `Aves`, `Actinopteri`, `Magnoliopsida`, and `Fungi`. |
-| `-o` | Output GFF annotation file. |
-| `-p` | Path to the output model prediction probability file. |
-| `-t` | Number of CPU cores used for decoding. |
-| `-s` | Chunk size used for each prediction run. This helps avoid repeatedly initializing PyTorch when processing highly fragmented genomes. This value affects peak memory usage. The default value is `1000`, representing 1000 Mb. |
-| `--show_log` | Show the decoding progress. |
-| `--overlap_pred` | Run overlapping-window prediction. For branches with relatively long genes, such as Mammalia and Actinopteri, we strongly recommend adding `--overlap_pred`, which can improve prediction performance to some extent. See [overlap_pred](docs/overlap_pred.md) for details. |
+| Parameter | Description                                                                                                                                                                                                                                                                                                                                                                                                  |
+|---|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-g` | Genome file to be annotated.                                                                                                                                                                                                                                                                                                                                                                                 |
+| `-m` | Full path to the model file.                                                                                                                                                                                                                                                                                                                                                                                 |
+| `-l` | Lineage of the species to be predicted. This is used to determine the sequence segment length during inference. Supported lineages are `Mammalia`, `Insecta`, `Aves`, `Actinopteri`, `Magnoliopsida`, and `Fungi`.                                                                                                                                                                                           |
+| `-o` | Output GFF annotation file.                                                                                                                                                                                                                                                                                                                                                                                  |
+| `-s` | Chunk size used for each prediction run. This helps avoid repeatedly initializing PyTorch when processing highly fragmented genomes. This value affects peak memory usage. The default value is `1000`, representing 1000 Mb. **If your available memory is limited, you can reduce this value.** For example, when setting it to `100`, memory usage on the human genome with 64 CPU cores is below 100 GB. |
+| `-t` | Number of CPU cores used for decoding.                                                                                                                                                                                                                                                                                                                                                                       |
+| `--show_log` | Show the decoding progress.                                                                                                                                                                                                                                                                                                                                                                                  |
+| `--overlap_pred` | Run overlapping-window prediction. For branches with relatively long genes, such as Mammalia and Actinopteri, we strongly recommend adding `--overlap_pred`, which can improve prediction performance to some extent. See [overlap_pred](docs/overlap_pred.md) for details.                                                                                                                                  |
 
 If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.
 ## Step-by-step Execution
