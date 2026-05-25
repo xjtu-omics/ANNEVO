@@ -1,5 +1,6 @@
-# ANNEVO (v2.3.0)
+# ANNEVO (v2.3.1)
 ## Recent Updates
+### v2.3.0
 **New models have been updated for five major clades.** This update integrates all beneficial explorations made after the version described in the paper, including a new data processing workflow, new training strategies, minor architectural adjustments (position embedding), longer-context training, decoding algorithm and optimizations for practical resource usage and runtime. 
 
 For plants, we continue to use the latest model from v2.2.3, because plants do not require longer-context training. Other optimizations had already been incorporated when that model was released, so we only further optimized the decoding algorithm. 
@@ -10,6 +11,7 @@ Compared with the version described in the paper, some of the most noticeable ch
 3. The maximum predictable gene length in human increased from 621 kb to 1,212 kb (*CSMD3*). 
 4. The minimum predictable gene length in human is 96 bp (*SLN*).
 
+### v2.3.1
 v2.3.1 optimizes the chunking logic during the prediction stage, significantly improving memory resource management, especially for highly fragmented genome assemblies. For example, the RefSeq genome of *Chlamydotis macqueenii* (`GCF_000695195.1_ASM69519v1`) has a total genome size of 1.08 Gb and contains 59,693 sequences/contigs. The longest contig is only 399 kb, with an N50 of 45 kb. On this genome, the peak memory usage of ANNEVO during the prediction stage was reduced by approximately 80%.
 
 For reference, under the default parameters, the peak memory usage of ANNEVO v2.3.1 during the prediction stage on the human genome (`GCF_000001405.40_GRCh38.p14`) is **34G**.
