@@ -10,6 +10,10 @@ Compared with the version described in the paper, some of the most noticeable ch
 3. The maximum predictable gene length in human increased from 621 kb to 1,212 kb (*CSMD3*). 
 4. The minimum predictable gene length in human is 96 bp (*SLN*).
 
+v2.3.1 optimizes the chunking logic during the prediction stage, significantly improving memory resource management, especially for highly fragmented genome assemblies. For example, the RefSeq genome of *Chlamydotis macqueenii* (`GCF_000695195.1_ASM69519v1`) has a total genome size of 1.08 Gb and contains 59,693 sequences/contigs. The longest contig is only 399 kb, with an N50 of 45 kb. On this genome, the peak memory usage of ANNEVO during the prediction stage was reduced by approximately 80%.
+
+For reference, under the default parameters, the peak memory usage of ANNEVO v2.3.1 during the prediction stage on the human genome (`GCF_000001405.40_GRCh38.p14`) is **34G**.
+
 ## Quick version check
 In the current version of ANNEVO, the BUSCO score for the **RefSeq human genome** annotation is shown as follows. In other performance evaluations of ANNEVO, this value can be used to check whether the latest version of ANNEVO was used.
 
@@ -24,24 +28,25 @@ In the current version of ANNEVO, the BUSCO score for the **RefSeq human genome*
 ### Annotation accuracy
 Annotation performance was evaluated on 12 model species across six clades, with two species selected from each clade. The average performance is shown below. The evaluation was performed using gffcompare ([Notes](docs/notes.md)). Detailed metrics for each species and the BUSCO databases used are available in [Performance](docs/performance.md).
 
-| Method | Exon recall | Exon precision | Locus recall | Locus precision | BUSCO |
-|---|------------:|---------------:|-------------:|----------------:|------:|
-| ANNEVO |        91.4 |           90.2 |         76.3 |            74.3 |  97.8 |
+| Method   | Exon recall | Exon precision | Locus recall | Locus precision | BUSCO |
+|----------|------------:|---------------:|-------------:|----------------:|------:|
+| ANNEVO   |        91.4 |           90.2 |         76.3 |            74.3 |  97.8 |
 | Tiberius |        89.8 |           88.7 |         74.0 |            68.8 |  96.3 |
-| Helixer |        86.1 |           75.3 |         50.2 |            47.0 |  92.5 |
+| Helixer  |        86.1 |           75.3 |         50.2 |            47.0 |  92.5 |
 
 ### Speed and GPU requirement
-**Evaluations on human genome.** See [Annotation time and resource usage](docs/performance.md) for details.
+**Evaluations on human genome (GCF_000001405.40_GRCh38.p14).** See [Annotation time and resource usage](docs/performance.md) for details.
 
-| Method | Time (single RTX4090, minutes) | Time (CPU only, minutes) |  GPU memory (GB, batch size=8) |
-|---|-------------------------------:|-------------------------:|-------------------------------:|
-| ANNEVO |                             52 |                 7.4 * 60 |                            3.8 |
-| Tiberius |                            141 |                 8.8 * 60 |                           22.5 |
-| Helixer |                            956 |                  23 * 60 |                            8.6 |
+| Method   | Time (single RTX4090, minutes) | Time (CPU only, minutes) | GPU memory (GB, batch size=8) |
+|----------|-------------------------------:|-------------------------:|------------------------------:|
+| ANNEVO   |                             52 |                 7.4 * 60 |                           3.8 |
+| Tiberius |                            141 |                 8.8 * 60 |                          22.5 |
+| Helixer  |                            956 |                  23 * 60 |                           8.6 |
 
 As a quick comparison on a small genome, using the same single RTX 4090, ANNEVO took 1.9 minutes on Arabidopsis thaliana, compared with 5.7 minutes for Tiberius and 13.9 minutes for Helixer.
 
 ## Update history
+#### 2026-05 (v2.3.1): Memory usage optimization, especially for fragmented genome assemblies.
 #### 2026-05 (v2.3.0): Covering updates to the model, data, training strategy, and engineering implementation, with substantially improved performance and speed.
 #### 2026-04 (v2.2.3): Added a new plant model and improved over 30% decoding speed.
 #### 2026-03 (v2.2.2): Optimized the search logic for candidate intervals during decoding.
@@ -105,16 +110,16 @@ python annotation.py -g path_to_genome -m path_to_model -l lineage -o path_to_gf
 
 ## Parameter Description and Additional Parameters
 
-| Parameter | Description                                                                                                                                                                                                                                                                                                                                                                                                  |
-|---|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `-g` | Genome file to be annotated.                                                                                                                                                                                                                                                                                                                                                                                 |
-| `-m` | Full path to the model file.                                                                                                                                                                                                                                                                                                                                                                                 |
-| `-l` | Lineage of the species to be predicted. This is used to determine the sequence segment length during inference. Supported lineages are `Mammalia`, `Insecta`, `Aves`, `Actinopteri`, `Magnoliopsida`, and `Fungi`.                                                                                                                                                                                           |
-| `-o` | Output GFF annotation file.                                                                                                                                                                                                                                                                                                                                                                                  |
-| `-s` | Chunk size used for each prediction run. This helps avoid repeatedly initializing PyTorch when processing highly fragmented genomes. This value affects peak memory usage. The default value is `1000`, representing 1000 Mb. **If your available memory is limited, you can reduce this value.** For example, when setting it to `100`, memory usage on the human genome with 64 CPU cores is below 100 GB. |
-| `-t` | Number of CPU cores used for decoding.                                                                                                                                                                                                                                                                                                                                                                       |
-| `--show_log` | Show the decoding progress.                                                                                                                                                                                                                                                                                                                                                                                  |
-| `--overlap_pred` | Run overlapping-window prediction. For branches with relatively long genes, such as Mammalia and Actinopteri, we strongly recommend adding `--overlap_pred`, which can improve prediction performance to some extent. See [overlap_pred](docs/overlap_pred.md) for details.                                                                                                                                  |
+| Parameter        | Description                                                                                                                                                                                                                                                                                                      |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-g`             | Genome file to be annotated.                                                                                                                                                                                                                                                                                     |
+| `-m`             | Full path to the model file.                                                                                                                                                                                                                                                                                     |
+| `-l`             | Lineage of the species to be predicted. This is used to determine the sequence segment length during inference. Supported lineages are `Mammalia`, `Insecta`, `Aves`, `Actinopteri`, `Magnoliopsida`, and `Fungi`.                                                                                               |
+| `-o`             | Output GFF annotation file.                                                                                                                                                                                                                                                                                      |
+| `-s`             | Chunk size used for each prediction run. This helps avoid repeatedly initializing PyTorch when processing highly fragmented genomes. This value affects peak memory usage in prediction step. The default value is `100`, representing 100 Mb. **If your available memory is limited, you can reduce this value. |
+| `-t`             | Number of CPU cores used for decoding. This value affects decoding speed and peak memory usage in decoding step.                                                                                                                                                                                                 |
+| `--show_log`     | Show the decoding progress.                                                                                                                                                                                                                                                                                      |
+| `--overlap_pred` | Run overlapping-window prediction. For branches with relatively long genes, such as Mammalia and Actinopteri, we strongly recommend adding `--overlap_pred`, which can improve prediction performance to some extent. See [overlap_pred](docs/overlap_pred.md) for details.                                      |
 
 If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.
 ## Step-by-step Execution

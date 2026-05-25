@@ -23,10 +23,10 @@ def main():
     parser.add_argument('-l', "--lineage", required=True, choices=length_config.keys(),
                         help="Use lineage-specific config for seq_len")
 
-    parser.add_argument('-s', '--genome_size_threshold', type=int, default=1000,
+    parser.add_argument('-s', '--genome_size_threshold', type=int, default=100,
                         help='Threshold for the total genome size per operation (M). '
                              'By default, whenever the cumulative size of contigs exceeds this threshold (e.g., 100 Mb), a prediction or decoding operation will be performed.')
-    parser.add_argument('--batch_size', type=int, default=64, help='The number of samples in a batch.')
+    parser.add_argument('--batch_size', type=int, default=32, help='The number of samples in a batch.')
     parser.add_argument('--num_workers', type=int, default=8, help='The number of CPU cores to load data in parallel')
     parser.add_argument('--overlap_pred', action='store_true',
                         help='Predict overlapping windows and average probabilities in overlapping output regions.')

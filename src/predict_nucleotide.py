@@ -58,7 +58,7 @@ def windows_split(length, sequence_fwd, window_size, flank_length, step_size, co
         windows_forward_rec.append(window_seq_fwd)
         windows_reverse_disorder.append(window_seq_rev)
         count += 1
-    return count, windows_forward_rec, windows_reverse_disorder, window_starts
+    return count, windows_forward_rec, windows_reverse_disorder, window_starts, total_len_needed
 
 
 def predict_probability(model, windows, device, num_classes, batch_size, num_workers):
@@ -210,16 +210,13 @@ def base_pred(genome, model_path, genome_size_threshold, prediction_path, num_wo
     chunk_num = 1
     genome_seq = process_input(genome)
     for seq_id in genome_seq:
-        # if seq_id != 'NC_000001.11':
-        #     continue
         sequence_forward = genome_seq[seq_id]
 
         length = len(sequence_forward)
-        cumulative_size = cumulative_size + length
         seq_id_chunk.append(seq_id)
         seq_length_chunk.append(length)
 
-        count, windows_forward_rec, windows_reverse_disorder, window_starts = windows_split(
+        count, windows_forward_rec, windows_reverse_disorder, window_starts, padded_length = windows_split(
             length,
             sequence_forward,
             window_size,
@@ -227,6 +224,7 @@ def base_pred(genome, model_path, genome_size_threshold, prediction_path, num_wo
             step_size,
             count,
         )
+        cumulative_size = cumulative_size + padded_length
         for window in windows_forward_rec:
             windows_forward.append(window)
         windows_reverse += windows_reverse_disorder[::-1].copy()
