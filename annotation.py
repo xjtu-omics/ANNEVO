@@ -18,11 +18,11 @@ def main():
     parser.add_argument("-t", "--threads", type=int, default=48, help="Number of CPU cores used for decoding.")
     parser.add_argument("--region_threads", type=int, default=4,
                         help="Number of processes for loading predictions and detecting potential genes.")
-    parser.add_argument('-s', '--genome_size_threshold', type=int, default=1000,
+    parser.add_argument('-s', '--genome_size_threshold', type=int, default=100,
                         help='Threshold for the total genome size per operation (M).')
     parser.add_argument("--tmp_path", help="Directory for temporary intermediate files.")
 
-    parser.add_argument('--batch_size', type=int, default=64, help='Batch size for model inference.')
+    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for model inference.')
     parser.add_argument('--num_workers', type=int, default=8, help='Number of worker processes for loading prediction data.')
     parser.add_argument('--overlap_pred', action='store_true',
                         help='Predict overlapping windows and average probabilities in overlapping output regions.')
