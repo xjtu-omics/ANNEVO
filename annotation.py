@@ -8,16 +8,24 @@ import sys
 
 
 def main():
+    length_config = {
+        'Mammalia': [102400, 12800, 32],
+        'Insecta': [102400, 12800, 32],
+        'Aves': [102400, 12800, 32],
+        'Actinopteri': [102400, 12800, 32],
+        'Magnoliopsida': [30720, 5120, 32],
+        'Fungi': [30720, 5120, 32],
+    }
+
     parser = argparse.ArgumentParser(description="Run nucleotide prediction and gene structure decoding in one step.")
     parser.add_argument('-g', '--genome', required=True, help='Input genome FASTA file.')
     parser.add_argument('-m', '--model_path', required=True,
                         help='Path to the trained prediction model.')
-    parser.add_argument('-l', "--lineage", required=True, help="Use lineage-specific config for seq_len.")
+    parser.add_argument('-l', "--lineage", required=True, choices=length_config.keys(),
+                        help="Use lineage-specific config for seq_len.")
 
     parser.add_argument('-o', "--output", required=True, help="Output GFF3 file path.")
     parser.add_argument("-t", "--threads", type=int, default=48, help="Number of CPU cores used for decoding.")
-    parser.add_argument("--region_threads", type=int, default=4,
-                        help="Number of processes for loading predictions and detecting potential genes.")
     parser.add_argument('-s', '--genome_size_threshold', type=int, default=100,
                         help='Threshold for the total genome size per operation (M).')
     parser.add_argument("--tmp_path", help="Directory for temporary intermediate files.")
@@ -51,11 +59,11 @@ def main():
     prediction_cmd = [
         sys.executable,
         prediction_script,
-        "--genome", args.genome,
-        "--model_path", args.model_path,
-        "--lineage", args.lineage,
-        "--genome_size_threshold", str(args.genome_size_threshold),
-        "--pred_path", model_prediction_path,
+        "-g", args.genome,
+        "-m", args.model_path,
+        "-l", args.lineage,
+        "-s", str(args.genome_size_threshold),
+        "-p", model_prediction_path,
         "--batch_size", str(args.batch_size),
         "--num_workers", str(args.num_workers),
     ]
@@ -66,11 +74,10 @@ def main():
     decoding_cmd = [
         sys.executable,
         decoding_script,
-        "--genome", args.genome,
-        "--model_prediction_path", model_prediction_path,
-        "--output", args.output,
-        "--threads", str(args.threads),
-        "--region_threads", str(args.region_threads),
+        "-g", args.genome,
+        "-p", model_prediction_path,
+        "-o", args.output,
+        "-t", str(args.threads),
         "--min_intron_length", str(args.min_intron_length),
         "--min_prot_length", str(args.min_prot_length),
     ]

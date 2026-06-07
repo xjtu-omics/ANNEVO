@@ -1,20 +1,8 @@
-# ANNEVO (v2.3.1)
+# ANNEVO (v2.3.2)
 ## Recent Updates
-### v2.3.0
-**New models have been updated for five major clades.** This update integrates all beneficial explorations made after the version described in the paper, including a new data processing workflow, new training strategies, minor architectural adjustments (position embedding), longer-context training, decoding algorithm and optimizations for practical resource usage and runtime. 
-
-For plants, we continue to use the latest model from v2.2.3, because plants do not require longer-context training. Other optimizations had already been incorporated when that model was released, so we only further optimized the decoding algorithm. 
-
-Compared with the version described in the paper, some of the most noticeable changes in the latest version include:
-1. The BUSCO score for human genome annotation increased from 95.7 to 98.3, using the same Mammalia_odb10 database as in the paper. 
-2. On the same machine configuration described in the paper, the annotation time for the human genome decreased from 82 minutes to 31 minutes. 
-3. The maximum predictable gene length in human increased from 621 kb to 1,212 kb (*CSMD3*). 
-4. The minimum predictable gene length in human is 96 bp (*SLN*).
-
-### v2.3.1
-v2.3.1 optimizes the chunking logic during the prediction stage, significantly improving memory resource management, especially for highly fragmented genome assemblies. For example, the RefSeq genome of *Chlamydotis macqueenii* (`GCF_000695195.1_ASM69519v1`) has a total genome size of 1.08 Gb and contains 59,693 sequences/contigs. The longest contig is only 399 kb, with an N50 of 45 kb. On this genome, the peak memory usage of ANNEVO during the prediction stage was reduced by approximately 80%.
-
-For reference, under the default parameters, the peak memory usage of ANNEVO v2.3.1 during the prediction stage on the human genome (`GCF_000001405.40_GRCh38.p14`) is **34G**.
+1. Accelerated decoding with Numba. The decoding process has been optimized using Numba. If ANNEVO is already installed, users can enable this optimization by installing numba==0.65.1 in the existing ANNEVO environment. On the human genome, decoding time was reduced from 22 minutes to 10 minutes.
+2. Further optimization of resource management. Resource management has been further improved. When running on the human genome with 64 CPU cores, the peak memory usage is now only 68 GB, with 34 GB peak memory during prediction and 68 GB peak memory during decoding.
+3. Fixed the Actinopteri model upload. The previously uploaded Actinopteri model was an incorrect version and has now been replaced with the correct model, consistent with the reported performance (same as previously described). Other models were not affected by this issue.
 
 ## Quick version check
 In the current version of ANNEVO, the BUSCO score for the **RefSeq human genome** annotation is shown as follows. In other performance evaluations of ANNEVO, this value can be used to check whether the latest version of ANNEVO was used.
@@ -24,9 +12,14 @@ In the current version of ANNEVO, the BUSCO score for the **RefSeq human genome*
 | Mammalia_odb10 |  98.3 |
 | Mammalia_odb12 |  98.2 |
 
+Compared with the version described in the paper, some of the most noticeable changes in the latest version include:
+1. The BUSCO score for human genome annotation increased from 95.7 to 98.3, using the same Mammalia_odb10 database as in the paper. 
+2. On the same machine configuration described in the paper, the annotation time for the human genome decreased from 82 minutes to 19 minutes. 
+3. The maximum predictable gene length in human increased from 621 kb to 1,212 kb (*CSMD3*). 
+4. The minimum predictable gene length in human is 96 bp (*SLN*).
 
 ## Performance
-**Evaluations were performed using the latest available version of each corresponding method as of May 18, 2026.** See [Notes](docs/notes.md) for details.
+**Evaluations were performed using the latest available version of each corresponding method as of June 1, 2026.** See [Notes](docs/notes.md) for details.
 ### Annotation accuracy
 Annotation performance was evaluated on 12 model species across six clades, with two species selected from each clade. The average performance is shown below. The evaluation was performed using gffcompare ([Notes](docs/notes.md)). Detailed metrics for each species and the BUSCO databases used are available in [Performance](docs/performance.md).
 
@@ -37,17 +30,16 @@ Annotation performance was evaluated on 12 model species across six clades, with
 | Helixer  |        86.1 |           75.3 |         50.2 |            47.0 |  92.5 |
 
 ### Speed and GPU requirement
-**Evaluations on human genome (GCF_000001405.40_GRCh38.p14).** See [Annotation time and resource usage](docs/performance.md) for details.
+Runtime was evaluated on a single RTX 4090 GPU by calculating the average prediction time, in minutes, of the three methods across 12 model species. GPU memory requirements were measured on the human genome (GCF_000001405.40_GRCh38.p14). The detailed runtime for each species is provided in [Annotation time and resource usage](docs/performance.md).
 
-| Method   | Time (single RTX4090, minutes) | Time (CPU only, minutes) | GPU memory (GB, batch size=8) |
-|----------|-------------------------------:|-------------------------:|------------------------------:|
-| ANNEVO   |                             52 |                 7.4 * 60 |                           3.8 |
-| Tiberius |                            141 |                 8.8 * 60 |                          22.5 |
-| Helixer  |                            956 |                  23 * 60 |                           8.6 |
-
-As a quick comparison on a small genome, using the same single RTX 4090, ANNEVO took 1.9 minutes on Arabidopsis thaliana, compared with 5.7 minutes for Tiberius and 13.9 minutes for Helixer.
+| Method   | Time (single RTX4090, minutes) | GPU memory (GB, batch size=8) |
+|----------|-------------------------------:|------------------------------:|
+| ANNEVO   |                          12.18 |                           3.8 |
+| Tiberius |                          43.59 |                          22.5 |
+| Helixer  |                         286.61 |                           8.6 |
 
 ## Update history
+#### 2026-06 (v2.3.2): Accelerated decoding with Numba and optimization of resource management. Fixed the Actinopteri model upload.
 #### 2026-05 (v2.3.1): Memory usage optimization, especially for fragmented genome assemblies.
 #### 2026-05 (v2.3.0): Covering updates to the model, data, training strategy, and engineering implementation, with substantially improved performance and speed.
 #### 2026-04 (v2.2.3): Added a new plant model and improved over 30% decoding speed.
@@ -77,7 +69,7 @@ cd ANNEVO
 ```
 If your CUDA version is higher than 12.1, you can directly install the environment using:
 ```
-# Available on 2026-04-17 
+# Available on 2026-06-05
 conda env create -f ANNEVO.yml -n your_env_name
 ```
 Alternatively, you can follow the steps below to install the environment manually.
@@ -95,7 +87,7 @@ conda activate ANNEVO
 conda install pytorch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 pytorch-cuda=12.1 -c pytorch -c nvidia
 
 # Install other packages
-conda install -c bioconda -c conda-forge bcbio-gff=0.7.1 h5py=3.14 torchmetrics=0.8.2 pandas=2.3.3 numpy=1.26.4 tqdm==4.67.1
+conda install -c bioconda -c conda-forge bcbio-gff=0.7.1 h5py=3.14 torchmetrics=0.8.2 pandas=2.3.3 numpy=1.26.4 tqdm==4.67.1 numba=0.65.1
 ```
 
 Check if CUDA is available:
@@ -140,10 +132,10 @@ The demo data located at './example'.
 `Arabidopsis_chr4_genome.fna`: Genome sequence of chromosome 4 of Arabidopsis thaliana.
 ```bash
 # One-step Execution
-python annotation.py -g example/Arabidopsis_chr4_genome.fna -m saved_model/ANNEVO_Magnoliopsida_seq.pt -l Magnoliopsida -o gff_result/Arabidopsis_chr4_annotation.gff -t 48 --show_log
+python annotation.py -g example/Arabidopsis_chr4_genome.fna -m saved_model/ANNEVO_Magnoliopsida.pt -l Magnoliopsida -o gff_result/Arabidopsis_chr4_annotation.gff -t 48 --show_log
 
 # Step-by-step Execution
-python prediction.py -g example/Arabidopsis_chr4_genome.fna -m saved_model/ANNEVO_Magnoliopsida_seq.pt -p prediction_result/Arabidopsis_chr4/model_prediction.h5 -l Magnoliopsida
+python prediction.py -g example/Arabidopsis_chr4_genome.fna -m saved_model/ANNEVO_Magnoliopsida.pt -p prediction_result/Arabidopsis_chr4/model_prediction.h5 -l Magnoliopsida
 python decoding.py -g example/Arabidopsis_chr4_genome.fna -p prediction_result/Arabidopsis_chr4/model_prediction.h5 -o gff_result/Arabidopsis_chr4_annotation.gff -t 48 --show_log
 ```
 

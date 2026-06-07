@@ -16,12 +16,12 @@ def detect_gene_location(base_predictions, seq_length, min_threshold, max_thresh
     """
     Detect the range of potential genes based on model's predictions.
     """
-    genic_proba = base_predictions[:, 1:].astype(np.float64).sum(axis=1)
+    genic_proba = base_predictions[:, 1:].astype(np.float32).sum(axis=1, dtype=np.float32)
     step = 50
     genic_region = []
     genic_region_start = 0
     in_genic_region = False
-    cumulative_sum = np.cumsum(genic_proba, dtype=np.float64)
+    cumulative_sum = np.cumsum(genic_proba, dtype=np.float32)
 
     for start in range(0, seq_length, step):
         end = min(start + step, seq_length)
@@ -250,6 +250,7 @@ def decode_gene_structure(location_start, predictions, sequence, min_cds_length,
         CDS_score, CDS_score_list = calculate_gene_score(gene_structure_all_states, predictions, CDS_list_init,
                                                          columns_dict)
         score_threshold = min_cds_score * 1.5 if CDS_count < min_cds_length or len(CDS_list_init) == 1 else min_cds_score
+        # score_threshold = min_cds_score * 1.5 if CDS_count < min_cds_length else min_cds_score
         if CDS_score < score_threshold:
             continue
 
@@ -514,47 +515,131 @@ def load_and_detect_gene_region(chr_name, sequence_forward, model_prediction_pat
     return chr_name, chromosome_length_single, potential_gene_list_single, end_time - start_time
 
 
+def load_and_detect_gene_region_chunk(chr_name, chunk_start, chunk_end, model_prediction_path,
+                                      average_threshold, max_threshold):
+    start_time = time.time()
+    with h5py.File(model_prediction_path, 'r') as h5file:
+        chr_group = h5file[chr_name]
+        predictions_forward = np.array(chr_group['predictions_forward'][chunk_start:chunk_end])
+        predictions_reverse = np.array(chr_group['predictions_reverse'][chunk_start:chunk_end])
+    end_time = time.time()
+
+    chunk_length = chunk_end - chunk_start
+    forward_regions = detect_gene_location(
+        predictions_forward,
+        chunk_length,
+        average_threshold,
+        max_threshold
+    )
+    reverse_regions = detect_gene_location(
+        predictions_reverse,
+        chunk_length,
+        average_threshold,
+        max_threshold
+    )
+    forward_regions = [(start + chunk_start, end + chunk_start) for start, end in forward_regions]
+    reverse_regions = [(start + chunk_start, end + chunk_start) for start, end in reverse_regions]
+    return chr_name, chunk_start, chunk_end, forward_regions, reverse_regions, end_time - start_time
+
+
+def build_potential_gene_list_from_regions(chr_name, chromosome_length_single, forward_regions, reverse_regions,
+                                           sequence_forward):
+    sequence_forward = re.sub(r'[^ATCGatcg]', 'N', sequence_forward)
+    sequence_reverse = rev_complement(sequence_forward)
+    potential_gene_list_single = []
+
+    forward_regions = expand_and_merge_regions(forward_regions, chromosome_length_single, buffer_size=100)
+    if not forward_regions:
+        potential_gene_list_single.append((None, None, chr_name, 1, None, None))
+    else:
+        for location_start, location_end in forward_regions:
+            potential_gene_list_single.append(
+                (location_start, location_end, chr_name, 1,
+                 None,
+                 sequence_forward[location_start:location_end])
+            )
+
+    reverse_regions = expand_and_merge_regions(reverse_regions, chromosome_length_single, buffer_size=100)
+    if not reverse_regions:
+        potential_gene_list_single.append((None, None, chr_name, -1, None, None))
+    else:
+        for location_start, location_end in reverse_regions:
+            potential_gene_list_single.append(
+                (location_start, location_end, chr_name, -1,
+                 None,
+                 sequence_reverse[location_start:location_end])
+            )
+
+    return potential_gene_list_single
+
+
 def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, average_threshold, max_threshold,
-                            min_cds_length, min_cds_score, min_intron_length, show_log=False, region_threads=None):
+                            min_cds_length, min_cds_score, min_intron_length, show_log=False):
     file_loading_time = 0
     chromosome_length = {}
     potential_gene_list = []
 
+    region_chunk_size = 10_000_000
     with h5py.File(f'{model_prediction_path}', 'r') as h5file:
         chromosome_names = list(h5file.keys())
+        chromosome_length = {
+            chr_name: int(h5file[chr_name]['predictions_forward'].shape[0])
+            for chr_name in chromosome_names
+        }
 
     genome_seqIO = SeqIO.index(genome, "fasta")
-    with ProcessPoolExecutor(max_workers=region_threads) as executor:
-        region_results = {}
+    region_tasks = []
+    for chr_name in chromosome_names:
+        chr_length = chromosome_length[chr_name]
+        for chunk_start in range(0, chr_length, region_chunk_size):
+            chunk_end = min(chunk_start + region_chunk_size, chr_length)
+            region_tasks.append((chr_name, chunk_start, chunk_end))
+
+    with ProcessPoolExecutor(max_workers=cpu_num) as executor:
+        region_results = {
+            chr_name: {"forward": [], "reverse": []}
+            for chr_name in chromosome_names
+        }
         futures = [
             executor.submit(
-                load_and_detect_gene_region,
+                load_and_detect_gene_region_chunk,
                 chr_name,
-                str(genome_seqIO[chr_name].seq).upper(),
+                chunk_start,
+                chunk_end,
                 model_prediction_path,
                 average_threshold,
                 max_threshold
             )
-            for chr_name in chromosome_names
+            for chr_name, chunk_start, chunk_end in region_tasks
         ]
         future_iter = as_completed(futures)
         if show_log:
-            future_iter = tqdm(future_iter, total=len(futures), desc='Loading data and detecting potential genes')
+            future_iter = tqdm(future_iter, total=len(futures), desc='Loading prediction chunks and detecting potential genes')
         for future in future_iter:
-            chr_name, chromosome_length_single, potential_gene_list_single, loading_time = future.result()
+            chr_name, chunk_start, chunk_end, forward_regions, reverse_regions, loading_time = future.result()
             file_loading_time += loading_time
-            region_results[chr_name] = (chromosome_length_single, potential_gene_list_single)
+            region_results[chr_name]["forward"].append((chunk_start, forward_regions))
+            region_results[chr_name]["reverse"].append((chunk_start, reverse_regions))
 
     for chr_name in chromosome_names:
-        chromosome_length_single, potential_gene_list_single = region_results[chr_name]
-        chromosome_length[chr_name] = chromosome_length_single
+        forward_region_chunks = sorted(region_results[chr_name]["forward"], key=lambda x: x[0])
+        reverse_region_chunks = sorted(region_results[chr_name]["reverse"], key=lambda x: x[0])
+        forward_regions = [region for _, regions in forward_region_chunks for region in regions]
+        reverse_regions = [region for _, regions in reverse_region_chunks for region in regions]
+        potential_gene_list_single = build_potential_gene_list_from_regions(
+            chr_name,
+            chromosome_length[chr_name],
+            forward_regions,
+            reverse_regions,
+            str(genome_seqIO[chr_name].seq).upper(),
+        )
         potential_gene_list.extend(potential_gene_list_single)
 
     seq_num = 1
     with open(output, 'w') as file:
         file.write('# This output was generated with ANNEVO (v2.3.1).\n')
         file.write('# ANNEVO is an ab initio gene annotation tool written by YeLab.\n')
-        file.write('# Citation: Zhang, P., Xu, T., Wang, S. et al. Highly accurate ab initio gene annotation with ANNEVO. Nat Methods (2026). https://doi.org/10.1038/s41592-026-03036-7\n')
+        file.write('# Citation: Zhang, P., Xu, T., Wang, S. et al. Highly accurate ab initio gene annotation with ANNEVO. Nat Methods 23, 740–748 (2026). https://doi.org/10.1038/s41592-026-03036-7\n')
 
     if potential_gene_list:
         decode_and_write(

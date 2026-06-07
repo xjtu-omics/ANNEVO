@@ -36,15 +36,6 @@ def main():
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    length_config = {
-        'Mammalia': [102400, 12800, 32],
-        'Insecta': [102400, 12800, 32],
-        'Aves': [102400, 12800, 32],
-        'Actinopteri': [102400, 12800, 32],
-        'Magnoliopsida': [30720, 5120, 32],
-        'Fungi': [30720, 5120, 32],
-    }
-
     window_size, flank_length, local_pattern_size = length_config[args.lineage]
     total_len = window_size + 2 * flank_length
     if total_len % local_pattern_size != 0:

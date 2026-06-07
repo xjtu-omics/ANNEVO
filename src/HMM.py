@@ -1,5 +1,6 @@
 import numpy as np
 from tqdm import tqdm
+from numba import njit
 
 
 def define_state(min_intron_length):
@@ -291,6 +292,67 @@ def set_transition_matrix_common_state(transition_matrix, states_to_num, min_int
     return transition_matrix
 
 
+@njit(cache=True)
+def _viterbi_core_numba_float32(log_emit_probs, transition_matrices, sequence_codes):
+    seq_length, num_states = log_emit_probs.shape
+    path = np.zeros((seq_length, num_states), dtype=np.int32)
+    dp = np.full((seq_length, num_states), -np.inf, dtype=np.float32)
+    dp[0, 0] = 0.0
+
+    for t in range(1, seq_length):
+        transition_matrix = transition_matrices[sequence_codes[t]]
+        for to_state in range(num_states):
+            best_score = -np.inf
+            best_from = 0
+            emit_score = log_emit_probs[t, to_state]
+            for from_state in range(num_states):
+                score = dp[t - 1, from_state] + transition_matrix[from_state, to_state] + emit_score
+                if score > best_score:
+                    best_score = score
+                    best_from = from_state
+            dp[t, to_state] = best_score
+            path[t, to_state] = best_from
+
+    best_path = np.empty(seq_length, dtype=np.int32)
+    best_path[seq_length - 1] = 0
+    for t in range(seq_length - 1, 0, -1):
+        best_path[t - 1] = path[t, best_path[t]]
+    return best_path
+
+
+@njit(cache=True)
+def _viterbi_core_numba_float64(log_emit_probs, transition_matrices, sequence_codes):
+    seq_length, num_states = log_emit_probs.shape
+    path = np.zeros((seq_length, num_states), dtype=np.int32)
+    dp = np.full((seq_length, num_states), -np.inf, dtype=np.float64)
+    dp[0, 0] = 0.0
+
+    for t in range(1, seq_length):
+        transition_matrix = transition_matrices[sequence_codes[t]]
+        for to_state in range(num_states):
+            best_score = -np.inf
+            best_from = 0
+            emit_score = log_emit_probs[t, to_state]
+            for from_state in range(num_states):
+                score = dp[t - 1, from_state] + transition_matrix[from_state, to_state] + emit_score
+                if score > best_score:
+                    best_score = score
+                    best_from = from_state
+            dp[t, to_state] = best_score
+            path[t, to_state] = best_from
+
+    best_path = np.empty(seq_length, dtype=np.int32)
+    best_path[seq_length - 1] = 0
+    for t in range(seq_length - 1, 0, -1):
+        best_path[t - 1] = path[t, best_path[t]]
+    return best_path
+
+
+def _encode_sequence(sequence):
+    base_to_code = {'A': 0, 'T': 1, 'C': 2, 'G': 3, 'N': 4}
+    return np.array([base_to_code.get(base, 4) for base in sequence], dtype=np.int32)
+
+
 def viterbi_decoding(predictions, sequence, states_to_num, num_states, columns_dict, min_intron_length,
                      expect_exon=None, expect_intron=None, extra_penalty=None):
     """
@@ -300,10 +362,7 @@ def viterbi_decoding(predictions, sequence, states_to_num, num_states, columns_d
     epsilon = 1e-3
     predictions[predictions < epsilon] = epsilon
     seq_length = predictions.shape[0]
-    log_emit_probs = np.zeros((seq_length, num_states))
-    states = list(range(num_states))
-    num_to_state = {value: key for key, value in states_to_num.items()}
-
+    log_emit_probs = np.zeros((seq_length, num_states), dtype=np.float32)
 
     log_emit_probs[:, columns_dict['INTERGENIC']] = np.log(predictions[:, 0][:, np.newaxis])
     log_emit_probs[:, columns_dict['CODING_EXON_0']] = np.log(predictions[:, 1][:, np.newaxis])
@@ -350,7 +409,7 @@ def viterbi_decoding(predictions, sequence, states_to_num, num_states, columns_d
         intron_sustain_penalty = 0
         intron_quit_penalty = 0
 
-    init_transition_matrix = np.full((num_states, num_states), -np.inf)
+    init_transition_matrix = np.full((num_states, num_states), -np.inf, dtype=np.float32)
     init_transition_matrix = set_transition_matrix_common_state(init_transition_matrix, states_to_num,
                                                                 min_intron_length,
                                                                 exon_sustain_penalty, exon_quit_penalty,
@@ -362,33 +421,24 @@ def viterbi_decoding(predictions, sequence, states_to_num, num_states, columns_d
                                                                      intron_sustain_penalty,
                                                                      intron_quit_penalty)
 
-    path = np.zeros((seq_length, num_states), dtype=int)
-    dp = np.full((seq_length, num_states), -np.inf)
-    dp[0, 0] = 0
-    # dp[0, :] = log_emit_probs[0, :]
-
-    for t in range(1, seq_length):
-        current_base = sequence[t]
-        transition_matrix = transition_matrix_dict[current_base]
-        current_penalty = transition_matrix + log_emit_probs[t]
-        total_probs = dp[t - 1, :, None] + current_penalty
-        dp[t, :] = np.max(total_probs, axis=0)
-        path[t, :] = np.argmax(total_probs, axis=0)
-
-        # Debug only
-        # if t % 2000 == 0:
-        #     best_state = int(np.argmax(dp[t, :]))
-        #     current_best_path = [best_state]
-        #     for back_t in range(t, 0, -1):
-        #         current_best_path.append(path[back_t, current_best_path[-1]])
-        #     current_best_path.reverse()
-        #     current_best_path_names = [num_to_state[state] for state in current_best_path]
-        #     print(f"t={t}, best_score={dp[t, best_state]:.4f}, best_path={' -> '.join(current_best_path_names[0:1743])}")
-
-    # best_path = [np.argmax(dp[-1, :])]
-    best_path = [0]
-    for t in range(seq_length - 1, 0, -1):
-        best_path.append(path[t, best_path[-1]])
-    best_path.reverse()
-
-    return [states[i] for i in best_path]
+    transition_matrices = np.stack([
+        transition_matrix_dict['A'],
+        transition_matrix_dict['T'],
+        transition_matrix_dict['C'],
+        transition_matrix_dict['G'],
+        transition_matrix_dict['N'],
+    ]).astype(np.float32)
+    sequence_codes = _encode_sequence(sequence)
+    if seq_length <= 1_000_000:
+        best_path = _viterbi_core_numba_float32(
+            log_emit_probs,
+            transition_matrices,
+            sequence_codes,
+        )
+    else:
+        best_path = _viterbi_core_numba_float64(
+            log_emit_probs,
+            transition_matrices,
+            sequence_codes,
+        )
+    return best_path.tolist()
