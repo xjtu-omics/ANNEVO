@@ -1,4 +1,5 @@
 # ANNEVO (v2.3.2)
+**Note: The ANNEVO model branches follow the NCBI Taxonomy classification. The name *Magnoliopsida* should not be interpreted as traditional dicotyledons. In NCBI Taxonomy (TaxID: 3398), Magnoliopsida represents flowering plants (angiosperms) and includes both monocots and dicots.**
 ## Recent Updates
 1. Accelerated decoding with Numba. The decoding process has been optimized using Numba. If ANNEVO is already installed, users can enable this optimization by installing numba==0.65.1 in the existing ANNEVO environment. On the human genome, decoding time was reduced from 22 minutes to 10 minutes.
 2. Further optimization of resource management. Resource management has been further improved. When running on the human genome with 64 CPU cores, the peak memory usage is now only 68 GB, with 34 GB peak memory during prediction and 68 GB peak memory during decoding.
