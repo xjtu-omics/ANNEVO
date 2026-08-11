@@ -1,9 +1,10 @@
-# ANNEVO (v2.3.2)
+# ANNEVO (v2.3.3)
+**The training code has been open-sourced and is available in [`model_training`](model_training/).**
+
 **Note: The ANNEVO model branches follow the NCBI Taxonomy classification. The name *Magnoliopsida* should not be interpreted as traditional dicotyledons. In NCBI Taxonomy (TaxID: 3398), Magnoliopsida represents flowering plants (angiosperms) and includes both monocots and dicots.**
 ## Recent Updates
-1. Accelerated decoding with Numba. The decoding process has been optimized using Numba. If ANNEVO is already installed, users can enable this optimization by installing numba==0.65.1 in the existing ANNEVO environment. On the human genome, decoding time was reduced from 22 minutes to 10 minutes.
-2. Further optimization of resource management. Resource management has been further improved. When running on the human genome with 64 CPU cores, the peak memory usage is now only 68 GB, with 34 GB peak memory during prediction and 68 GB peak memory during decoding.
-3. Fixed the Actinopteri model upload. The previously uploaded Actinopteri model was an incorrect version and has now been replaced with the correct model, consistent with the reported performance (same as previously described). Other models were not affected by this issue.
+1. Open-sourced the training code, available in [`model_training`](model_training/).
+2. Added optional LZF compression for intermediate prediction H5 datasets. Compression is disabled by default and reduces prediction-file size without changing the final GFF output, but increases runtime due to the additional compression overhead.
 
 ## Quick version check
 In the current version of ANNEVO, the BUSCO score for the **RefSeq human genome** annotation is shown as follows. In other performance evaluations of ANNEVO, this value can be used to check whether the latest version of ANNEVO was used.
@@ -40,15 +41,9 @@ Runtime was evaluated on a single RTX 4090 GPU by calculating the average predic
 | Helixer  |                         286.61 |                           8.6 |
 
 ## Update history
-#### 2026-06 (v2.3.2): Accelerated decoding with Numba and optimization of resource management. Fixed the Actinopteri model upload.
-#### 2026-05 (v2.3.1): Memory usage optimization, especially for fragmented genome assemblies.
-#### 2026-05 (v2.3.0): Covering updates to the model, data, training strategy, and engineering implementation, with substantially improved performance and speed.
-#### 2026-04 (v2.2.3): Added a new plant model and improved over 30% decoding speed.
-#### 2026-03 (v2.2.2): Optimized the search logic for candidate intervals during decoding.
-#### 2026-01 (v2.2.1): Released two new models for Insecta and Mammalia, trained with the new data processing and training pipeline.
-#### 2025-10 (v2.2): Memory usage optimization.  
-#### 2025-07 (v2.1): New model architecture and training procedure.
-#### 2025-01 (v1.0): Ab initio gene annotation with ANNEVO.
+
+See the complete [ANNEVO update history](docs/update_history.md).
+
 ## Overview
 ANNEVO is a deep learning-based ab initio gene annotation method for understanding genome function. ANNEVO is capable of modeling distal sequence information and joint evolutionary relationships across diverse species directly from genomes.  
 
@@ -115,6 +110,7 @@ python annotation.py -g path_to_genome -m path_to_model -l lineage -o path_to_gf
 | `-t`             | Number of CPU cores used for decoding. This value affects decoding speed and peak memory usage in decoding step.                                                                                                                                                                                                 |
 | `--show_log`     | Show the decoding progress.                                                                                                                                                                                                                                                                                      |
 | `--overlap_pred` | Run overlapping-window prediction. For branches with relatively long genes, such as Mammalia and Actinopteri, we strongly recommend adding `--overlap_pred`, which can improve prediction performance to some extent. See [overlap_pred](docs/overlap_pred.md) for details.                                      |
+| `--comp`         | Compress the intermediate prediction H5 datasets with LZF. Compression is disabled by default. This option reduces prediction-file size without changing the final GFF output, but increases runtime due to the additional compression overhead.                                                                 |
 
 If your GPU environment has limited CPU resources, you can also use the step-by-step execution mode.
 ## Step-by-step Execution
@@ -127,7 +123,7 @@ python prediction.py -g path_to_genome -m path_to_model -p path_to_prediction_h5
 # Gene structure decoding
 python decoding.py -g path_to_genome -p path_to_prediction_h5 -o path_to_gff -t 48 --show_log
 ```
-The `-p` parameter specifies the path for the output model prediction probability file.
+The `-p` parameter specifies the path for the output model prediction probability file. Add `--comp` to the prediction or one-step command to store this H5 file using LZF compression.
 ## Run demo data
 The demo data located at './example'.
 `Arabidopsis_chr4_genome.fna`: Genome sequence of chromosome 4 of Arabidopsis thaliana.

@@ -34,6 +34,8 @@ def main():
     parser.add_argument('--num_workers', type=int, default=8, help='Number of worker processes for loading prediction data.')
     parser.add_argument('--overlap_pred', action='store_true',
                         help='Predict overlapping windows and average probabilities in overlapping output regions.')
+    parser.add_argument('--comp', action='store_true',
+                        help='Compress intermediate prediction datasets with LZF. Disabled by default.')
     parser.add_argument("--min_intron_length", type=int, default=20,
                         help="Minimum intron length of CDS-associated intron groups.")
     parser.add_argument("--min_prot_length", type=int, default=100,
@@ -69,6 +71,8 @@ def main():
     ]
     if args.overlap_pred:
         prediction_cmd.append("--overlap_pred")
+    if args.comp:
+        prediction_cmd.append("--comp")
     subprocess.run(prediction_cmd, check=True)
 
     decoding_cmd = [

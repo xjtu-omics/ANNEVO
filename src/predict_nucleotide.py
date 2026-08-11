@@ -146,15 +146,16 @@ def pred_only(model, windows_forward, windows_reverse, device, num_classes, batc
     return genome_predictions
 
 
-def save_prediction_result(genome_predictions, prediction_path):
+def save_prediction_result(genome_predictions, prediction_path, comp=False):
     start_time = time.time()
+    dataset_options = {"chunks": True, "compression": "lzf"} if comp else {}
     with h5py.File(f'{prediction_path}', "a") as f:
         for seq_id, data in genome_predictions.items():
             grp = f.create_group(seq_id)
             pred_fwd_rec = data[0]
             pred_rev_rec = data[1]
-            grp.create_dataset("predictions_forward", data=pred_fwd_rec)
-            grp.create_dataset("predictions_reverse", data=pred_rev_rec)
+            grp.create_dataset("predictions_forward", data=pred_fwd_rec, **dataset_options)
+            grp.create_dataset("predictions_reverse", data=pred_rev_rec, **dataset_options)
     end_time = time.time()
     return end_time - start_time
 
@@ -178,7 +179,8 @@ def process_input(genome):
 
 
 def base_pred(genome, model_path, genome_size_threshold, prediction_path, num_workers, batch_size,
-              window_size, flank_length, local_pattern_size, lineage, num_classes=15, overlap_pred=False):
+              window_size, flank_length, local_pattern_size, lineage, num_classes=15, overlap_pred=False,
+              comp=False):
     print('Model loading')
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model_construction_for_pred(
@@ -236,7 +238,7 @@ def base_pred(genome, model_path, genome_size_threshold, prediction_path, num_wo
             chunk_num += 1
             genome_predictions = pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
                                            seq_id_chunk, seq_length_chunk, offset, window_starts_chunk, step_size, overlap_pred)
-            runtime = save_prediction_result(genome_predictions, prediction_path)
+            runtime = save_prediction_result(genome_predictions, prediction_path, comp=comp)
             file_saving_time += runtime
 
             # Reinitialization
@@ -253,7 +255,7 @@ def base_pred(genome, model_path, genome_size_threshold, prediction_path, num_wo
         chunk_num += 1
         genome_predictions = pred_only(model, windows_forward, windows_reverse, device, num_classes, batch_size, num_workers,
                                        seq_id_chunk, seq_length_chunk, offset, window_starts_chunk, step_size, overlap_pred)
-        runtime = save_prediction_result(genome_predictions, prediction_path)
+        runtime = save_prediction_result(genome_predictions, prediction_path, comp=comp)
         file_saving_time += runtime
 
     print(f"file saving cost {file_saving_time:.1f} seconds")

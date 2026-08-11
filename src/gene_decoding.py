@@ -637,7 +637,7 @@ def gene_structure_decoding(genome, model_prediction_path, output, cpu_num, aver
 
     seq_num = 1
     with open(output, 'w') as file:
-        file.write('# This output was generated with ANNEVO (v2.3.1).\n')
+        file.write('# This output was generated with ANNEVO (v2.3.3).\n')
         file.write('# ANNEVO is an ab initio gene annotation tool written by YeLab.\n')
         file.write('# Citation: Zhang, P., Xu, T., Wang, S. et al. Highly accurate ab initio gene annotation with ANNEVO. Nat Methods 23, 740–748 (2026). https://doi.org/10.1038/s41592-026-03036-7\n')
 

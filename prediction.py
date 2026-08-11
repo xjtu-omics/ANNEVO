@@ -30,6 +30,8 @@ def main():
     parser.add_argument('--num_workers', type=int, default=8, help='The number of CPU cores to load data in parallel')
     parser.add_argument('--overlap_pred', action='store_true',
                         help='Predict overlapping windows and average probabilities in overlapping output regions.')
+    parser.add_argument('--comp', action='store_true',
+                        help='Compress prediction datasets with LZF. Disabled by default.')
     args = parser.parse_args()
 
     output_dir = os.path.dirname(args.pred_path)
@@ -61,6 +63,7 @@ def main():
         local_pattern_size,
         args.lineage,
         overlap_pred=args.overlap_pred,
+        comp=args.comp,
     )
     end_time = time.time()
     elapsed_time = end_time - start_time

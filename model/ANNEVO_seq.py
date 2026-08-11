@@ -181,48 +181,6 @@ class ConvBlock(nn.Module):
         return x
 
 
-class EviConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, padding):
-        super(EviConvBlock, self).__init__()
-        self.bn1 = nn.BatchNorm1d(in_channels)
-        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=padding, bias=False)
-        self.bn2 = nn.BatchNorm1d(out_channels)
-        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=kernel_size, padding=padding, bias=False)
-        torch.nn.init.kaiming_uniform_(self.conv1.weight, mode='fan_in', nonlinearity='leaky_relu')
-        torch.nn.init.kaiming_uniform_(self.conv2.weight, mode='fan_in', nonlinearity='leaky_relu')
-
-    def forward(self, x):
-        x = self.bn1(x)
-        x = F.leaky_relu(x, negative_slope=0.1)
-        x = self.conv1(x)
-        residual = x
-        x = self.conv2(x)
-        x = x + residual
-
-        return x
-
-
-class EvidenceRepresentation(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels):
-        super(EvidenceRepresentation, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=in_channels, out_channels=hidden_channels, kernel_size=1, padding=0, bias=False)
-        self.block1 = EviConvBlock(in_channels=hidden_channels, out_channels=hidden_channels, kernel_size=11, padding=5)
-        self.block2 = EviConvBlock(in_channels=hidden_channels, out_channels=hidden_channels, kernel_size=21, padding=10)
-        self.conv2 = nn.Conv1d(in_channels=hidden_channels, out_channels=out_channels, kernel_size=1, padding=0, bias=False)
-        torch.nn.init.kaiming_uniform_(self.conv1.weight, mode='fan_in', nonlinearity='leaky_relu')
-        torch.nn.init.kaiming_uniform_(self.conv2.weight, mode='fan_in', nonlinearity='leaky_relu')
-
-    def forward(self, x):
-        x = x.permute(0, 2, 1)
-        x = self.conv1(x)
-        res1 = x
-        x = res1 + self.block1(x)
-        res2 = x
-        x = res2 + self.block2(x)
-        x = self.conv2(x)
-        return x
-
-
 class FeatureExtractor(nn.Module):
     def __init__(
         self,
